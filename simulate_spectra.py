@@ -151,7 +151,7 @@ def update_header(hdu_list, target):
 
 
 def process_catalog(catalog, band='DECam.r', mag_min=18., mag_max=20.5, template_path='',
-                    exptime=1200, moon='dark', spectro='HRS', output='l1_data'):
+                    exptime=1200, moon='dark', spectro='hrs', output='l1_data'):
     catalog['TEMPLATE'] = ['%s.fits' % f for f in catalog['ID']]
     catalog['EXPTIME'] = exptime
     catalog['MOON'] = moon
@@ -169,7 +169,8 @@ def process_catalog(catalog, band='DECam.r', mag_min=18., mag_max=20.5, template
     print("Applying 4MOST ETC to the catalog:")
     # Object to simulate the 4MOST observatory, including atmosphere,
     # telescope, spectrograph, CCD.
-    qmost = QMostObservatory(spectro.lower())
+    # qmost = QMostObservatory(spectro.lower())
+    qmost = QMostObservatory(spectro)
     for num, row in enumerate(tqdm(catalog), 1):
         target = Target(row)
         run_ETC_target(qmost, target, output, template_path='output/quasar_models')

@@ -12,14 +12,22 @@ __email__ = 'jens-kristian.krogager@univ-lyon1.fr'
 
 
 # -- Input parameters
-Z_MIN = 2.
-Z_MAX = 4.
-EXPTIME = 3600  # seconds
+Z_MIN = 0.55
+Z_MAX = 6.0
+
+EXPTIME = 47.77 * 60  # seconds
 MOON = 'dark'
-MAG_MIN = 19
-MAG_MAX = 19.1
-OUTPUT_DIR = 'output/paqs_H2'
-QSO_OUTPUT_DIR = 'output/quasar_models'
+
+# EXPTIME = 53.29 * 60  # seconds
+# MOON = 'gray'
+
+# EXPTIME = 97.446 * 60  # seconds
+# MOON = 'bright'
+
+MAG_MIN = 15.0
+MAG_MAX = 22.0
+OUTPUT_DIR = 'simpaqs_outputs/test/output'
+QSO_OUTPUT_DIR = 'simpaqs_outputs/test/quasar_models'
 BAL = False
 ##########################
 

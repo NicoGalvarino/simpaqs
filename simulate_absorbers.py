@@ -416,8 +416,8 @@ def main():
                         help="Minimum redshift to simulate  [default=1]")
     parser.add_argument("--z_max", type=float, default=4.,
                         help="maximum redshift to simulate  [default=4]")
-    parser.add_argument("-o", "--output", type=str, default='output/abs_templates',
-                        help="Output directory [default=output/abs_templates]")
+    parser.add_argument("-o", "--output", type=str, default='simpaqs_output/test/abs_templates',
+                        help="Output directory [default=simpaqs_output/test/abs_templates]")
 
     args = parser.parse_args()
     templates, absorbers, DLAs = make_absorber_templates(args.number, args.z_min, args.z_max, args.output)
