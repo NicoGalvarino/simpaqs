@@ -151,7 +151,7 @@ def update_header(hdu_list, target):
 
 
 def process_catalog(catalog, band='DECam.r', mag_min=18., mag_max=20.5, template_path='',
-                    exptime=1200, moon='dark', spectro='LRS', output='l1_data'):
+                    exptime=1200, moon='dark', spectro='HRS', output='l1_data'):
     catalog['TEMPLATE'] = ['%s.fits' % f for f in catalog['ID']]
     catalog['EXPTIME'] = exptime
     catalog['MOON'] = moon
@@ -187,7 +187,7 @@ if __name__ == '__main__':
     parser.add_argument('--exptime', type=float, default=1200)
     parser.add_argument('--moon', type=str, default='dark')
     parser.add_argument('--seeing', type=float, default=0.8)
-    parser.add_argument('--spectro', type=str, default='LRS', choices=['LRS', 'HRS'])
+    parser.add_argument('--spectro', type=str, default='HRS', choices=['LRS', 'HRS'])
     parser.add_argument('--path', type=str, default='output/quasar_models')
     parser.add_argument("-o", "--output", type=str, default='output/l1_data/',
                         help="output directory [default=./output/l1_data]")

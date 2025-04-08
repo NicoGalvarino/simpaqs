@@ -69,7 +69,8 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
 
     # Object to simulate the 4MOST observatory, including atmosphere,
     # telescope, spectrograph, CCD.
-    spectrograph = 'lrs' if catalog['RESOLUTION'][0] == 1 else 'hrs'
+    # spectrograph = 'lrs' if catalog['RESOLUTION'][0] == 1 else 'hrs'
+    spectrograph = 'hrs'
     qmost = QMostObservatory(spectrograph)
     alt = np.arccos(1. / airmass) * 180 / np.pi * u.deg
     rulesets = load_rulesets(qmost, ruleset_fname, rules_fname)
