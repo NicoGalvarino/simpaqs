@@ -239,7 +239,7 @@ def add_CI(z, wl, logN, T=None):
     return transmission, T, n
 
 
-def make_absorber(z_qso, filenum=1, output_dir='output/abs_templates'):
+def make_absorber(z_qso, filenum=1, output_dir='../simpaqs_output/test/abs_templates'):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
@@ -375,7 +375,7 @@ def make_absorber(z_qso, filenum=1, output_dir='output/abs_templates'):
     return template_info, abs_info
 
 
-def make_absorber_templates(N_total, z_min=1.0, z_max=4.0, output_dir='output/abs_templates', verbose=True):
+def make_absorber_templates(N_total, z_min=1.0, z_max=4.0, output_dir='../simpaqs_output/test/abs_templates', verbose=True):
     info_list = []
     abs_info_list = []
     quasar_redshifts = np.random.uniform(z_min, z_max, N_total)
@@ -391,18 +391,18 @@ def make_absorber_templates(N_total, z_min=1.0, z_max=4.0, output_dir='output/ab
             #sys.stdout.write("\r %i / %i" % (num, N_total))
             #sys.stdout.flush()
     filelog = Table(info_list)
-    filelog.write("output/list_templates.csv", format='csv', overwrite=True)
+    filelog.write("../simpaqs_output/test/list_templates.csv", format='csv', overwrite=True)
     abslog = Table(abs_info_list)
-    abslog.write("output/list_absorbers.csv", format='csv', overwrite=True)
+    abslog.write("../simpaqs_output/test/list_absorbers.csv", format='csv', overwrite=True)
     all_dlas = (abslog['LOG_NHI'] > 20.3) & (abslog['Z_ABS'] > 2.05)
     DLAlog = abslog[all_dlas]
-    DLAlog.write("output/list_dlas.csv", format='csv', overwrite=True)
+    DLAlog.write("../simpaqs_output/test/list_dlas.csv", format='csv', overwrite=True)
     if verbose:
         print("")
         print("Wrote summary files:")
-        print("Template list: output/list_templates.csv")
-        print("Absorber list: output/list_absorbers.csv")
-        print("DLA list: output/list_dlas.csv")
+        print("Template list: ../simpaqs_output/test/list_templates.csv")
+        print("Absorber list: ../simpaqs_output/test/list_absorbers.csv")
+        print("DLA list: ../simpaqs_output/test/list_dlas.csv")
         print(f"Finished in {datetime.datetime.now() - start}")
     return filelog, abslog, DLAlog
 
@@ -416,8 +416,8 @@ def main():
                         help="Minimum redshift to simulate  [default=1]")
     parser.add_argument("--z_max", type=float, default=4.,
                         help="maximum redshift to simulate  [default=4]")
-    parser.add_argument("-o", "--output", type=str, default='simpaqs_output/test/abs_templates',
-                        help="Output directory [default=simpaqs_output/test/abs_templates]")
+    parser.add_argument("-o", "--output", type=str, default='../simpaqs_output/test/abs_templates',
+                        help="Output directory [default=../simpaqs_output/test/abs_templates]")
 
     args = parser.parse_args()
     templates, absorbers, DLAs = make_absorber_templates(args.number, args.z_min, args.z_max, args.output)

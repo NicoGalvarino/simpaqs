@@ -26,8 +26,8 @@ MOON = 'dark'
 
 MAG_MIN = 15.0
 MAG_MAX = 22.0
-OUTPUT_DIR = 'simpaqs_outputs/test/output'
-QSO_OUTPUT_DIR = 'simpaqs_outputs/test/quasar_models'
+OUTPUT_DIR = '../simpaqs_outputs/test/output'
+QSO_OUTPUT_DIR = '../simpaqs_outputs/test/quasar_models'
 BAL = False
 ##########################
 

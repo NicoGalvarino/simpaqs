@@ -182,7 +182,7 @@ def main():
     parser.add_argument('--ruleset', type=str, help='Ruleset definition (FITS or CSV)')
     parser.add_argument('--temp-dir', type=str, default='./', help='Directory of spectral templates')
     parser.add_argument("-o", "--output", type=str, default='l1_data',
-                        help="output directory [default=./l1_data]")
+                        help="output directory [default=../simpaqs_outputs/test/l1_data]")
     parser.add_argument('--arm', type=str, default='J', choices=['J', 'joined', 'ALL', 'a'])
     parser.add_argument('--prog', type=str, default='4MOST-ETC',
                         help="Determines the PROG_ID header keyword")
