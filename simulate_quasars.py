@@ -41,7 +41,9 @@ __author__ = 'Jens-Kristian Krogager'
 __email__ = 'jens-kristian.krogager@univ-lyon1.fr'
 
 from astropy.cosmology import Planck13
-from astropy import table
+# from astropy import table
+from astropy.table import Table, vstack
+from astropy.io import fits
 import numpy as np
 from scipy import stats
 import os
@@ -206,7 +208,7 @@ def add_quasar_continuum(templates, dust_mode='exponential', BAL=False, output_d
     qsos.data['BAL_TYPE'] = all_bal_types
     if os.path.exists(f'{output_dir}/model_parameters.fits'):
         tab = Table.read(f'{output_dir}/model_parameters.fits')
-        tab = table.vstack([tab, qsos.data])
+        tab = vstack([tab, qsos.data])
     else:
         tab = qsos.data
     tab.write(f'{output_dir}/model_parameters.fits', overwrite=True)
@@ -215,7 +217,7 @@ def add_quasar_continuum(templates, dust_mode='exponential', BAL=False, output_d
     subset.rename_column('z', 'REDSHIFT')
     if os.path.exists(f'{output_dir}/model_input.csv'):
         old_subset = Table.read(f'{output_dir}/model_input.csv')
-        subset = table.vstack([old_subset, subset])
+        subset = vstack([old_subset, subset])
     subset.write(f'{output_dir}/model_input.csv', overwrite=True)
     return subset
 
