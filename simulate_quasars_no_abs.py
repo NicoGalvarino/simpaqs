@@ -40,6 +40,7 @@ from scipy import stats
 import os
 import glob
 import pickle
+import pandas as pd
 
 from simqso.sqgrids import *
 from simqso import sqbase
@@ -65,9 +66,9 @@ here = os.path.abspath(os.path.dirname(__file__))
 #     return models
 
 
-def simulate_quasars(nqso=100, z_list=None, z_range=(1.0, 4.5), wave_range=(3000, 9000), 
+def simulate_quasars(nqso=100, z_list=None, names_list=None, z_range=(1.0, 4.5), wave_range=(3000, 9000), 
                      dust_mode='exponential', #BAL=False, 
-                     output_dir='./../QSO_output/quasar_models_no_BALs'):
+                     output_dir='./../QSO_output/simulated_QSOs'):
     """
     Simulate a set of quasars without any absorber templates.
     
@@ -77,6 +78,8 @@ def simulate_quasars(nqso=100, z_list=None, z_range=(1.0, 4.5), wave_range=(3000
         Number of quasars to simulate
     z_list : array-like, optional
         List of specific redshifts to use for the quasars. If provided, nqso is set to len(z_list)
+    names_list : array-like, optional
+        List of names corresponding to each quasar
     z_range : tuple
         Redshift range (min, max) to sample from
     wave_range : tuple
@@ -205,6 +208,9 @@ def simulate_quasars(nqso=100, z_list=None, z_range=(1.0, 4.5), wave_range=(3000
     qsos.data['LOG_MBH'] = logM_BH
     qsos.data['LOG_REDD'] = logR_Edd
     # qsos.data['BAL_TYPE'] = all_bal_types
+
+    if names_list is not None:
+        qsos.data['NAME'] = names_list
     
     if os.path.exists(f'{output_dir}/model_parameters.fits'):
         tab = Table.read(f'{output_dir}/model_parameters.fits')
@@ -213,13 +219,16 @@ def simulate_quasars(nqso=100, z_list=None, z_range=(1.0, 4.5), wave_range=(3000
         tab = qsos.data
     tab.write(f'{output_dir}/model_parameters.fits', overwrite=True)
     
-    # Write input parameter table:
-    subset = qsos.data['ID', 'z', 'absMag', 'smcDustEBV', 'LOG_MBH', 'LOG_REDD'#, 'BAL_TYPE'
-                       ]
+    columns = ['ID', 'z', 'absMag', 'smcDustEBV', 'LOG_MBH', 'LOG_REDD']
+    if names_list is not None:
+        columns.append('NAME')
+    
+    subset = qsos.data[columns]
     subset.rename_column('z', 'REDSHIFT')
-    if os.path.exists(f'{output_dir}/model_input.csv'):
-        old_subset = Table.read(f'{output_dir}/model_input.csv')
-        subset = vstack([old_subset, subset])
+
+    # if os.path.exists(f'{output_dir}/model_input.csv'):
+    #     old_subset = Table.read(f'{output_dir}/model_input.csv')
+    #     subset = vstack([old_subset, subset])
     subset.write(f'{output_dir}/model_input.csv', overwrite=True)
     return subset
 
@@ -243,8 +252,8 @@ def main():
                         help="Dust sampling mode: 'exponential' or 'uniform' [default=exponential]")
     # parser.add_argument('--bal', action='store_true',
     #                     help="Include broad absorption line features")
-    parser.add_argument("--dir", type=str, default='./../QSO_output/quasar_models_no_BALs',
-                        help="Output directory [default=./../QSO_output/quasar_models_no_BALs]")
+    parser.add_argument("--dir", type=str, default='./../QSO_output/simulated_QSOs',
+                        help="Output directory [default=./../QSO_output/simulated_QSOs]")
 
     args = parser.parse_args()
     
@@ -257,14 +266,18 @@ def main():
     
 
     cat = Table.read('./../ByCycle_balanced_subset_QSOs.fits', format='fits').to_pandas()
+    
     nqsos = cat.shape[0]
     print(f"Simulating {nqsos} quasars without absorber templates")
+
     z_arr = cat.REDSHIFT_ESTIMATE.values
+    names = cat['NAME'].to_numpy(dtype=str)
 
     simulate_quasars(
         nqso=nqsos,
         # z_range=(args.zmin, args.zmax),
         z_list=z_arr, 
+        names_list=names,
         wave_range=(args.wmin, args.wmax),
         dust_mode=args.dust,
         # BAL=args.bal,
