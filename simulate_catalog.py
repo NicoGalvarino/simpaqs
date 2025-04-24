@@ -104,7 +104,7 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
         # if ab_vega != 'AB':
         #     print("Warning not AB magnitude in catalog... may be incorrect")
         mag = row['MAG'] * mag_unit
-        SED = SED.redshift(row['REDSHIFT_ESTIMATE'])
+        # SED = SED.redshift(row['REDSHIFT_ESTIMATE'])
         etc.set_target(SED(mag, mag_type), 'point')
         obs.set_target(SED(mag, mag_type), 'point')
 
@@ -181,10 +181,10 @@ def main():
     parser.add_argument('-n', '--number', type=int, default=None)
     parser.add_argument('--rules', type=str, help='Rules definition (FITS or CSV)')
     parser.add_argument('--ruleset', type=str, help='Ruleset definition (FITS or CSV)')
-    parser.add_argument('--temp-dir', type=str, default='./', help='Directory of spectral templates')
-    parser.add_argument("-o", "--output", type=str, default='l1_data',
-                        help="output directory [default=../simpaqs_outputs/l1_data]")
-    parser.add_argument('--arm', type=str, default='J', choices=['J', 'joined', 'ALL', 'a'])
+    parser.add_argument('--temp-dir', type=str, default='./../QSO_output/simulated_QSOs_balanced', help='Directory of spectral templates')
+    parser.add_argument("-o", "--output", type=str, default='./../QSO_output/simulated_QSOs_balanced_ETC_airmass_1_2_moon_dark_seeing_0_8/',
+                        help="output directory [default=./../QSO_output/simulated_QSOs_balanced_ETC_airmass_1_2_moon_dark_seeing_0_8/]")
+    parser.add_argument('--arm', type=str, default='ALL', choices=['J', 'joined', 'ALL', 'a'])
     parser.add_argument('--prog', type=str, default='4MOST-ETC',
                         help="Determines the PROG_ID header keyword")
 
