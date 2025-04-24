@@ -139,8 +139,11 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
             for arm_name in qmost.keys():
                 INST = 'L' if spectrograph == 'lrs' else 'H'
                 INST += arm_name.upper()[0]
-                INST += '1'
-                output_arm = os.path.join(output_dir, f'{target_name}_{INST}.fits')
+                # INST += '1'
+
+                z_str = str(np.round(row['REDSHIFT_ESTIMATE'], 4))
+                model_id = f'QSO_sim_ETC_z{z_str}_{target_name}'
+                output_arm = os.path.join(output_dir, f'{model_id}_{INST}.fits')
                 try:
                     hdu_list = dxu.per_arm(arm_name)
                     hdu_list = update_header(hdu_list, row)
@@ -181,9 +184,9 @@ def main():
     parser.add_argument('-n', '--number', type=int, default=None)
     parser.add_argument('--rules', type=str, help='Rules definition (FITS or CSV)')
     parser.add_argument('--ruleset', type=str, help='Ruleset definition (FITS or CSV)')
-    parser.add_argument('--temp-dir', type=str, default='./../QSO_output/simulated_QSOs_balanced', help='Directory of spectral templates')
-    parser.add_argument("-o", "--output", type=str, default='./../QSO_output/simulated_QSOs_balanced_ETC_airmass_1_2_moon_dark_seeing_0_8/',
-                        help="output directory [default=./../QSO_output/simulated_QSOs_balanced_ETC_airmass_1_2_moon_dark_seeing_0_8/]")
+    parser.add_argument('--temp-dir', type=str, default='./../QSO_output/QSOs_balanced_training_set', help='Directory of spectral templates')
+    parser.add_argument("-o", "--output", type=str, default='./../QSO_output/QSOs_balanced_training_set_ETC_airmass_1_2_moon_dark_seeing_0_8/',
+                        help="output directory [default=./../QSO_output/QSOs_balanced_training_set_ETC_airmass_1_2_moon_dark_seeing_0_8/]")
     parser.add_argument('--arm', type=str, default='ALL', choices=['J', 'joined', 'ALL', 'a'])
     parser.add_argument('--prog', type=str, default='4MOST-ETC',
                         help="Determines the PROG_ID header keyword")

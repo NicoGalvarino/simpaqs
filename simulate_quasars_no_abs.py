@@ -65,10 +65,9 @@ here = os.path.abspath(os.path.dirname(__file__))
 #             models[key] = (wl, trans)
 #     return models
 
-
-def simulate_quasars(nqso=100, z_list=None, names_list=None, z_range=(1.0, 4.5), wave_range=(3000, 9000), 
+def simulate_quasars(nqso=100, z_list=None, names_list=None, z_range=(1.0, 4.5), wave_range=(3000, 11000), 
                      dust_mode='exponential', #BAL=False, 
-                     output_dir='./../QSO_output/simulated_QSOs'):
+                     output_dir='./../QSO_output/QSOs_balanced_training_set'):
     """
     Simulate a set of quasars without any absorber templates.
     
@@ -163,8 +162,12 @@ def simulate_quasars(nqso=100, z_list=None, names_list=None, z_range=(1.0, 4.5),
     # all_bal_types = []
     dnum = len(glob.glob(f'{output_dir}/QSOs_*.fits')) + 1
     for num, spec in enumerate(tqdm(spectra)):
-        z_str = str(np.round(z_all[num], 4)).replace('.', '_')
-        model_id = f'QSO_z{z_str}_{num+dnum:06}'
+        z_str = str(np.round(z_all[num], 4))#.replace('.', '_')
+        target_name = names_list[num]
+        
+        model_id = f'QSO_sim_z{z_str}_{target_name}'
+        # model_id = f'QSO_z{z_str}_{num+dnum:06}'
+
         filename = f'{output_dir}/{model_id}.fits'
         all_ids.append(model_id)
         
@@ -246,14 +249,14 @@ def main():
     #                     help="Maximum redshift [default=4.5]")
     parser.add_argument("--wmin", type=float, default=3000,
                         help="Minimum wavelength in Angstrom [default=3000]")
-    parser.add_argument("--wmax", type=float, default=9000,
-                        help="Maximum wavelength in Angstrom [default=9000]")
+    parser.add_argument("--wmax", type=float, default=11000,
+                        help="Maximum wavelength in Angstrom [default=11000]")
     parser.add_argument('--dust', type=str, default='exponential',
                         help="Dust sampling mode: 'exponential' or 'uniform' [default=exponential]")
     # parser.add_argument('--bal', action='store_true',
     #                     help="Include broad absorption line features")
-    parser.add_argument("--dir", type=str, default='./../QSO_output/simulated_QSOs',
-                        help="Output directory [default=./../QSO_output/simulated_QSOs]")
+    parser.add_argument("--dir", type=str, default='./../QSO_output/QSOs_balanced_training_set',
+                        help="Output directory [default=./../QSO_output/QSOs_balanced_training_set]")
 
     args = parser.parse_args()
     
