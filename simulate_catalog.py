@@ -118,7 +118,7 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
                             'TEXP': texp, 'REDSHIFT': row['REDSHIFT_ESTIMATE'], 
                             'SUBSURVEY': row['SUBSURVEY']})
 
-        res = obs.expose(texp)
+        res = obs.expose(texp)  # 'wavelength', 'binwidth', 'efficiency', 'gain', , 'target', 'sky', 'dark', 'ron', 'noise'
         if np.isnan(res['target']).any():
             res['target'][np.isnan(res['target'])] = 0.
         if np.isnan(res['sky']).any():
@@ -143,7 +143,7 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
 
                 z_str = str(np.round(row['REDSHIFT_ESTIMATE'], 4))
                 model_id = f'QSO_sim_ETC_z{z_str}_{target_name}'
-                output_arm = os.path.join(output_dir, f'{model_id}_{INST}.fits')
+                output_arm = os.path.join(output_dir, f'{model_id}_{INST}.fits')  # saves fluxin ADU
                 try:
                     hdu_list = dxu.per_arm(arm_name)
                     hdu_list = update_header(hdu_list, row)
@@ -152,15 +152,16 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
                     print(f"Failed to save the spectrum: {row['TEMPLATE']}")
                     print(f"for arm: {arm_name}")
 
-        if spectrograph.lower() == 'lrs':
-            # Create JOINED L1 SPECTRUM:
-            output = os.path.join(output_dir, f"{target_name}_LJ1.fits")
-            try:
-                hdu_list = dxu.joined()
-                hdu_list = update_header(hdu_list, row, prog_id)
-                hdu_list.writeto(output, overwrite=True)
-            except ValueError as e:
-                print(f"Failed to save the joined spectrum: {row['TEMPLATE']}")
+        # if spectrograph.lower() == 'lrs':
+        # Create JOINED L1 SPECTRUM:
+        model_id = f'QSO_sim_ETC_z{z_str}_{target_name}'
+        output = os.path.join(output_dir, f"{model_id}_LJ1.fits")
+        try:
+            hdu_list = dxu.joined()
+            hdu_list = update_header(hdu_list, row, prog_id)
+            hdu_list.writeto(output, overwrite=True)
+        except ValueError as e:
+            print(f"Failed to save the joined spectrum: {row['TEMPLATE']}")
 
         sys.stdout.write(f"\r{num}/{len(catalog)}")
         sys.stdout.flush()

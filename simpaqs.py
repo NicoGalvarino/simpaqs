@@ -13,9 +13,9 @@ __email__ = 'jens-kristian.krogager@univ-lyon1.fr'
 
 # -- Input parameters
 Z_MIN = 0.55
-Z_MAX = 6.0
+Z_MAX = 2.0
 
-EXPTIME = 47.77 * 60  # seconds
+EXPTIME = 60 * 60  # seconds
 MOON = 'dark'
 
 # EXPTIME = 53.29 * 60  # seconds
@@ -26,9 +26,10 @@ MOON = 'dark'
 
 MAG_MIN = 15.0
 MAG_MAX = 22.0
-OUTPUT_DIR = '../simpaqs_outputs/test/output'
-QSO_OUTPUT_DIR = '../simpaqs_outputs/test/quasar_models'
+OUTPUT_DIR = '../simpaqs_outputs_test/etc_output'
+QSO_OUTPUT_DIR = '../simpaqs_outputs_test/quasar_models'
 BAL = False
+
 ##########################
 
 N_TOTAL = int(sys.argv[1])
