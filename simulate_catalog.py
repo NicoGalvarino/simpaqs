@@ -135,26 +135,28 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
         dxu = L1DXU(qmost, res, texp)
 
         # Write individual L1 files
-        if l1_type[0].upper() == 'A':
-            for arm_name in qmost.keys():
-                INST = 'L' if spectrograph == 'lrs' else 'H'
-                INST += arm_name.upper()[0]
-                # INST += '1'
+        # if l1_type[0].upper() == 'A':
+        #     for arm_name in qmost.keys():
+        #         INST = 'L' if spectrograph == 'lrs' else 'H'
+        #         INST += arm_name.upper()[0]
+        #         # INST += '1'
 
-                z_str = str(np.round(row['REDSHIFT_ESTIMATE'], 4))
-                model_id = f'QSO_sim_ETC_z{z_str}_{target_name}'
-                output_arm = os.path.join(output_dir, f'{model_id}_{INST}.fits')  # saves fluxin ADU
-                try:
-                    hdu_list = dxu.per_arm(arm_name)
-                    hdu_list = update_header(hdu_list, row)
-                    hdu_list.writeto(output_arm, overwrite=True)
-                except ValueError as e:
-                    print(f"Failed to save the spectrum: {row['TEMPLATE']}")
-                    print(f"for arm: {arm_name}")
+        #         z_str = str(np.round(row['REDSHIFT_ESTIMATE'], 4))
+        #         model_id = f'QSO_sim_ETC_z{z_str}_{target_name}'
+        #         output_arm = os.path.join(output_dir, f'{model_id}_{INST}.fits')  # saves fluxin ADU
+        #         try:
+        #             hdu_list = dxu.per_arm(arm_name)
+        #             hdu_list = update_header(hdu_list, row)
+        #             hdu_list.writeto(output_arm, overwrite=True)
+        #         except ValueError as e:
+        #             print(f"Failed to save the spectrum: {row['TEMPLATE']}")
+        #             print(f"for arm: {arm_name}")
 
         # if spectrograph.lower() == 'lrs':
         # Create JOINED L1 SPECTRUM:
-        model_id = f'QSO_sim_ETC_z{z_str}_{target_name}'
+        z_str = str(np.round(row['REDSHIFT_ESTIMATE'], 4))
+        mag_str = str(np.round(row['MAG'], 2))
+        model_id = f'QSO_sim_ETC_z{z_str}_mag{mag_str}_{target_name}'
         output = os.path.join(output_dir, f"{model_id}_LJ1.fits")
         try:
             hdu_list = dxu.joined()
@@ -170,7 +172,7 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
     log_fname = os.path.join(output_dir, 'exposure_times.csv')
     exptimes.write(log_fname,
                    formats={'TEXP': '%.1f', 'MAG': '%.2f', 'REDSHIFT': '%.4f'},
-                   overwrite=True, comment='# ')
+                   overwrite=True, comment='# ', format='csv')
     print("")
 
 
@@ -220,4 +222,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

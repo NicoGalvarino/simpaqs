@@ -13,9 +13,10 @@ __email__ = 'jens-kristian.krogager@univ-lyon1.fr'
 
 # -- Input parameters
 Z_MIN = 0.55
-Z_MAX = 2.0
+Z_MAX = 1.0
 
-EXPTIME = 60 * 60  # seconds
+texp_hours = 2
+EXPTIME = texp_hours * 60 * 60  # seconds
 MOON = 'dark'
 
 # EXPTIME = 53.29 * 60  # seconds
@@ -24,10 +25,15 @@ MOON = 'dark'
 # EXPTIME = 97.446 * 60  # seconds
 # MOON = 'bright'
 
-MAG_MIN = 15.0
-MAG_MAX = 22.0
-OUTPUT_DIR = '../simpaqs_outputs_test/etc_output'
-QSO_OUTPUT_DIR = '../simpaqs_outputs_test/quasar_models'
+MAG_MIN = 19.0
+MAG_MAX = 21.0
+
+# MAG_MIN = 15.0
+# MAG_MAX = 17.0
+
+OUTPUT_DIR = '../simpaqs_outputs_test_dim/etc_output'
+QSO_OUTPUT_DIR = '../simpaqs_outputs_test_dim/quasar_models'
+
 BAL = False
 
 ##########################
@@ -46,5 +52,5 @@ model_input = add_quasar_continuum(abs_template_list, BAL=BAL, output_dir=QSO_OU
 # model_input = table.Table.read('output/quasar_models/model_input.csv') # For midway inspection
 
 process_catalog(model_input, mag_min=MAG_MIN, mag_max=MAG_MAX, template_path=QSO_OUTPUT_DIR,
-                exptime=EXPTIME, moon=MOON, output=OUTPUT_DIR)
+                exptime=EXPTIME, moon=MOON, output=OUTPUT_DIR)#, spectro=spectro)
 
