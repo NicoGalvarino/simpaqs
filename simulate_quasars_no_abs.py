@@ -97,7 +97,7 @@ def simulate_quasars(nqso=100, z_list=None, names_list=None, z_range=(1.0, 4.5),
     """
     # Generate wavelength grid
     wave = np.arange(wave_range[0], wave_range[1], 0.1)  # 1 Angstrom sampling
-    # 4MOST wavelength grid here
+    # TNG wavelength grid here
 
     # if BAL:
     #     bal_models = load_bal_templates()
@@ -266,9 +266,10 @@ def main():
     print(f"Dust mode: {args.dust}")
     # print(f"BAL features: {'Yes' if args.bal else 'No'}")
     print(f"Output directory: {args.dir}")
-    
 
-    cat = Table.read('./../ByCycle_balanced_subset_QSOs.fits', format='fits').to_pandas()
+    # cat = Table.read('./../ByCycle_balanced_subset_QSOs.fits', format='fits').to_pandas()
+    cat = Table.read('./../ByCycle_cat_not_in_balanced_training_set_subset.fits').to_pandas()
+
     
     nqsos = cat.shape[0]
     print(f"Simulating {nqsos} quasars without absorber templates")

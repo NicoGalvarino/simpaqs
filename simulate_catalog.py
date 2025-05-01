@@ -59,7 +59,9 @@ def update_header(hdu_list, target, prog_id='4MOST-ETC'):
 
 def process_catalog(catalog, *, ruleset_fname, rules_fname,
                     output_dir='l1_data', template_path='',
-                    airmass=1.2, seeing=0.8, moon='dark',
+                    airmass=1.2,  # 1.0 - 1.5
+                    seeing=0.8,  # 0.4 - 1.5
+                    moon='grey',
                     CR_rate=1.67e-7, l1_type='joined', N_targets=None,
                     prog_id='4MOST-ETC', t_min=20*u.min, t_max=120*u.min):
 
