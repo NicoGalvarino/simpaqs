@@ -39,6 +39,7 @@ import numpy as np
 from scipy import stats
 import os
 import glob
+import gc
 import pickle
 import pandas as pd
 
@@ -256,7 +257,7 @@ def main():
     # parser.add_argument('--bal', action='store_true',
     #                     help="Include broad absorption line features")
     parser.add_argument("--dir", type=str, default='./../QSO_output/QSOs_balanced_training_set',
-                        help="Output directory [default=./../QSO_output/QSOs_balanced_training_set]")
+                        help="Output directory")
 
     args = parser.parse_args()
     
@@ -268,25 +269,54 @@ def main():
     print(f"Output directory: {args.dir}")
 
     # cat = Table.read('./../ByCycle_balanced_subset_QSOs.fits', format='fits').to_pandas()
-    cat = Table.read('./../ByCycle_cat_not_in_balanced_training_set_subset.fits').to_pandas()
-
-    
+    # cat = Table.read('./../ByCycle_cat_not_in_balanced_training_set_subset.fits').to_pandas()
+    cat = Table.read('./../../S17_Catalog/Catalogues/ByCycle_final_cat_april15/ByCycle_Final_Cat_with_all_S17_cols_plus_fobs_notna.fits').to_pandas()
     nqsos = cat.shape[0]
-    print(f"Simulating {nqsos} quasars without absorber templates")
+    print(f"Total number of quasars to simulate: {nqsos}")
 
-    z_arr = cat.REDSHIFT_ESTIMATE.values
-    names = cat['NAME'].to_numpy(dtype=str)
+    if nqsos > 30000:
+        # Process in chunks to manage memory
+        chunk_size = 30000
+        num_chunks = (nqsos + chunk_size - 1) // chunk_size
+        
+        for chunk_idx in range(num_chunks):
+            start_idx = chunk_idx * chunk_size
+            end_idx = min((chunk_idx + 1) * chunk_size, nqsos)
+            
+            print(f"\nProcessing chunk {chunk_idx+1}/{num_chunks} (QSOs {start_idx+1}-{end_idx})")
+            
+            chunk_cat = cat.iloc[start_idx:end_idx]
+            z_arr = chunk_cat.REDSHIFT_ESTIMATE.values
+            names = chunk_cat['NAME'].to_numpy(dtype=str)
+            
+            simulate_quasars(
+                nqso=len(z_arr),
+                z_list=z_arr, 
+                names_list=names,
+                wave_range=(args.wmin, args.wmax),
+                dust_mode=args.dust,
+                output_dir=args.dir
+            )
+            
+            del chunk_cat, z_arr, names
+            gc.collect()
 
-    simulate_quasars(
-        nqso=nqsos,
-        # z_range=(args.zmin, args.zmax),
-        z_list=z_arr, 
-        names_list=names,
-        wave_range=(args.wmin, args.wmax),
-        dust_mode=args.dust,
-        # BAL=args.bal,
-        output_dir=args.dir
-    )
+    else:
+        z_arr = cat.REDSHIFT_ESTIMATE.values
+        names = cat['NAME'].to_numpy(dtype=str)
+
+        simulate_quasars(
+            nqso=nqsos,
+            # z_range=(args.zmin, args.zmax),
+            z_list=z_arr, 
+            names_list=names,
+            wave_range=(args.wmin, args.wmax),
+            dust_mode=args.dust,
+            # BAL=args.bal,
+            output_dir=args.dir
+        )
+
+
 
 if __name__ == '__main__':
     main()
