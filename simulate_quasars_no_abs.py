@@ -268,7 +268,7 @@ def main():
     print(f"Output directory: {args.dir}")
 
     # cat = Table.read('./../ByCycle_balanced_subset_QSOs.fits', format='fits').to_pandas()
-    cat = Table.read('./../ByCycle_cat_not_in_balanced_training_set_subset.fits').to_pandas()
+    cat = Table.read('./../QSO_output/ByCycle_cat_not_in_balanced_training_set.fits').to_pandas()
 
     
     nqsos = cat.shape[0]
