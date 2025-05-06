@@ -59,11 +59,15 @@ def update_header(hdu_list, target, prog_id='4MOST-ETC'):
 
 def process_catalog(catalog, *, ruleset_fname, rules_fname,
                     output_dir='l1_data', template_path='',
-                    airmass=1.2,  # 1.0 - 1.5
-                    seeing=0.8,  # 0.4 - 1.5
-                    moon='gray',
-                    CR_rate=1.67e-7, l1_type='joined', N_targets=None,
+                    # airmass=1.25,  # 1.0 - 1.5
+                    # seeing=0.8,  # 0.4 - 1.5
+                    moon='grey',
+                    CR_rate=1.67e-7, #l1_type='joined', 
+                    N_targets=None,
                     prog_id='4MOST-ETC', t_min=20*u.min, t_max=120*u.min):
+
+    airmass = np.random.uniform(1.0, 1.5)
+    seeing = np.random.normal(0.4, 1.5)
 
     catalog['MOON'] = moon
     catalog['SEEING'] = seeing
@@ -111,12 +115,24 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
         obs.set_target(SED(mag, mag_type), 'point')
 
         # Get and print the exposure time
-        texp = etc.get_exptime()
+        texp_col = 'texp_' + moon[0]
+        if texp_col in catalog.colnames:
+            texp = row[texp_col]
+        else:
+            etc.set_target(SED(mag, mag_type), 'point')
+            texp = etc.get_exptime()
         if texp < t_min:
             texp = t_min
         if texp > t_max:
             texp = t_max
-        exptime_log.append({'NAME': target_name, 'MAG': row['MAG'],
+
+        if 'fobs' in catalog.colnames:
+            exptime_log.append({'NAME': target_name, 'MAG': row['MAG'],
+                            'TEXP': texp, 'fobs':row['fobs'], 'REDSHIFT': row['REDSHIFT_ESTIMATE'], 
+                            'SUBSURVEY': row['SUBSURVEY']})
+            texp = row['fobs'] * texp
+        else:
+            exptime_log.append({'NAME': target_name, 'MAG': row['MAG'],
                             'TEXP': texp, 'REDSHIFT': row['REDSHIFT_ESTIMATE'], 
                             'SUBSURVEY': row['SUBSURVEY']})
 
@@ -187,12 +203,11 @@ def main():
     parser.add_argument('--moon', type=str, default='dark', choices=['dark', 'gray', 'bright'])
     parser.add_argument('--seeing', type=float, default=0.8)
     parser.add_argument('-n', '--number', type=int, default=None)
-    parser.add_argument('--rules', type=str, help='Rules definition (FITS or CSV)')
-    parser.add_argument('--ruleset', type=str, help='Ruleset definition (FITS or CSV)')
+    parser.add_argument('--rules', type=str, default='./../S17_20250122T1441Z_rules.csv', help='Rules definition (FITS or CSV)')
+    parser.add_argument('--ruleset', type=str, default='./../S17_20250122T1443Z_rulesets.csv', help='Ruleset definition (FITS or CSV)')
     parser.add_argument('--temp-dir', type=str, default='./../QSO_output/QSOs_balanced_training_set', help='Directory of spectral templates')
-    parser.add_argument("-o", "--output", type=str, default='./../QSO_output/QSOs_balanced_training_set_ETC_airmass_1_2_moon_dark_seeing_0_8/',
-                        help="output directory [default=./../QSO_output/QSOs_balanced_training_set_ETC_airmass_1_2_moon_dark_seeing_0_8/]")
-    parser.add_argument('--arm', type=str, default='ALL', choices=['J', 'joined', 'ALL', 'a'])
+    parser.add_argument("-o", "--output", type=str, default='./../QSO_output/QSOs_balanced_training_set_ETC_airmass_1_2_moon_dark_seeing_0_8/', help="output directory")
+    # parser.add_argument('--arm', type=str, default='ALL', choices=['J', 'joined', 'ALL', 'a'])
     parser.add_argument('--prog', type=str, default='4MOST-ETC',
                         help="Determines the PROG_ID header keyword")
 
@@ -206,10 +221,10 @@ def main():
                     rules_fname=args.rules,
                     output_dir=args.output,
                     template_path=args.temp_dir,
-                    airmass=args.airmass,
-                    seeing=args.seeing,
+                    # airmass=args.airmass,
+                    # seeing=args.seeing,
                     moon=args.moon,
-                    l1_type=args.arm,
+                    # l1_type=args.arm,
                     N_targets=args.number,
                     prog_id=args.prog,
                     )
