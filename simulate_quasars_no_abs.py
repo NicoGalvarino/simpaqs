@@ -230,9 +230,9 @@ def simulate_quasars(nqso=100, z_list=None, names_list=None, z_range=(1.0, 4.5),
     subset = qsos.data[columns]
     subset.rename_column('z', 'REDSHIFT')
 
-    # if os.path.exists(f'{output_dir}/model_input.csv'):
-    #     old_subset = Table.read(f'{output_dir}/model_input.csv')
-    #     subset = vstack([old_subset, subset])
+    if os.path.exists(f'{output_dir}/model_input.csv'):
+        old_subset = Table.read(f'{output_dir}/model_input.csv')
+        subset = vstack([old_subset, subset])
     subset.write(f'{output_dir}/model_input.csv', overwrite=True)
     return subset
 
@@ -270,13 +270,13 @@ def main():
 
     # cat = Table.read('./../ByCycle_balanced_subset_QSOs.fits', format='fits').to_pandas()
     # cat = Table.read('./../ByCycle_cat_not_in_balanced_training_set_subset.fits').to_pandas()
-    cat = Table.read('./../../S17_Catalog/Catalogues/ByCycle_final_cat_april15/ByCycle_Final_Cat_with_all_S17_cols_plus_fobs_notna.fits').to_pandas()
+    cat = Table.read('./../../S17_Catalog/Catalogues/ByCycle_final_cat_april15/ByCycle_Final_Cat_with_all_S17_cols_plus_fobs_notna_balanced_set.fits').to_pandas()
     nqsos = cat.shape[0]
     print(f"Total number of quasars to simulate: {nqsos}")
 
     if nqsos > 30000:
         # Process in chunks to manage memory
-        chunk_size = 30000
+        chunk_size = 10000
         num_chunks = (nqsos + chunk_size - 1) // chunk_size
         
         for chunk_idx in range(num_chunks):

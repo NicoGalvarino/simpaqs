@@ -59,41 +59,48 @@ def update_header(hdu_list, target, prog_id='4MOST-ETC'):
 
 def process_catalog(catalog, *, ruleset_fname, rules_fname,
                     output_dir='l1_data', template_path='',
-                    # airmass=1.25,  # 1.0 - 1.5
+                    # airmass=1.2,  # 1.0 - 1.5
                     # seeing=0.8,  # 0.4 - 1.5
-                    moon='grey',
+                    moon='gray',
                     CR_rate=1.67e-7, #l1_type='joined', 
                     N_targets=None,
-                    prog_id='4MOST-ETC', t_min=20*u.min, t_max=120*u.min):
-
-    airmass = np.random.uniform(1.0, 1.5)
-    seeing = np.random.normal(0.4, 1.5)
-
-    catalog['MOON'] = moon
-    catalog['SEEING'] = seeing
-    catalog['AIRMASS'] = airmass
-
-    # Object to simulate the 4MOST observatory, including atmosphere,
-    # telescope, spectrograph, CCD.
-    # spectrograph = 'lrs' if catalog['RESOLUTION'][0] == 1 else 'hrs'
-    spectrograph = 'hrs'
-    qmost = QMostObservatory(spectrograph)
-    alt = np.arccos(1. / airmass) * 180 / np.pi * u.deg
-    rulesets = load_rulesets(qmost, ruleset_fname, rules_fname)
-    obs = qmost(alt, seeing*u.arcsec, moon)
+                    prog_id='4MOST-ETC', t_min=20*u.min, t_max=1e9*u.min):
 
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
-    
+
+    spectrograph = 'hrs'
+    qmost = QMostObservatory(spectrograph)
+    rulesets = load_rulesets(qmost, ruleset_fname, rules_fname)
+
+    # airmass = np.random.uniform(1.0, 1.5)  # buscar airmass maximo de 4most
+    # seeing = np.random.normal(0.4, 1.5)  # mean 0.8, std 0.3
+
+    catalog['MOON'] = moon
+    catalog['SEEING'] = np.random.normal(0.4, 2.3, len(catalog))
+    catalog['AIRMASS'] = np.random.uniform(1.0, 2.5, len(catalog))
+
+    # alt = np.arccos(1. / airmass) * 180 / np.pi * u.deg
+    # obs = qmost(alt, seeing*u.arcsec, moon)
+
     warnings.simplefilter('ignore', u.UnitsWarning)
     warnings.simplefilter('ignore', fits.card.VerifyWarning)
     print("Applying 4MOST ETC to the catalog:")
+
     exptime_log = []
     if N_targets:
         idx = np.random.choice(np.arange(len(catalog)), N_targets, replace=False)
         catalog = catalog[idx]
 
     for num, row in enumerate(catalog, 1):
+
+        row['MOON'] = moon
+        seeing = row['SEEING']
+        airmass = row['AIRMASS']
+
+        alt = np.arccos(1. / airmass) * 180 / np.pi * u.deg
+        obs = qmost(alt, seeing*u.arcsec, moon)
+
         ruleset_name = row['RULESET']
         target_name = row['NAME']
         ruleset = rulesets[ruleset_name]
@@ -116,8 +123,9 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
 
         # Get and print the exposure time
         texp_col = 'texp_' + moon[0]
+        print(texp_col)
         if texp_col in catalog.colnames:
-            texp = row[texp_col]
+            texp = row[texp_col] * u.min
         else:
             etc.set_target(SED(mag, mag_type), 'point')
             texp = etc.get_exptime()
@@ -129,12 +137,15 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
         if 'fobs' in catalog.colnames:
             exptime_log.append({'NAME': target_name, 'MAG': row['MAG'],
                             'TEXP': texp, 'fobs':row['fobs'], 'REDSHIFT': row['REDSHIFT_ESTIMATE'], 
-                            'SUBSURVEY': row['SUBSURVEY']})
+                            'SUBSURVEY': row['SUBSURVEY'], 'SEEING': seeing, 'AIRMASS': airmass})
+            print(row['fobs'])
+            print(texp)
             texp = row['fobs'] * texp
+            print(texp)
         else:
             exptime_log.append({'NAME': target_name, 'MAG': row['MAG'],
                             'TEXP': texp, 'REDSHIFT': row['REDSHIFT_ESTIMATE'], 
-                            'SUBSURVEY': row['SUBSURVEY']})
+                            'SUBSURVEY': row['SUBSURVEY'], 'SEEING': seeing, 'AIRMASS': airmass})
 
         res = obs.expose(texp)  # 'wavelength', 'binwidth', 'efficiency', 'gain', , 'target', 'sky', 'dark', 'ron', 'noise'
         if np.isnan(res['target']).any():
@@ -176,12 +187,15 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
         mag_str = str(np.round(row['MAG'], 2))
         model_id = f'QSO_sim_ETC_z{z_str}_mag{mag_str}_{target_name}'
         output = os.path.join(output_dir, f"{model_id}_LJ1.fits")
+        print(model_id)
         try:
             hdu_list = dxu.joined()
             hdu_list = update_header(hdu_list, row, prog_id)
             hdu_list.writeto(output, overwrite=True)
-        except ValueError as e:
-            print(f"Failed to save the joined spectrum: {row['TEMPLATE']}")
+        # except ValueError as e:
+        #     print(f"Failed to save the joined spectrum: {row['TEMPLATE']}")
+        except (ValueError, IndexError) as e:
+            print(f"\nFailed to save the joined spectrum for {target_name} (z={row['REDSHIFT_ESTIMATE']}): {str(e)}")
 
         sys.stdout.write(f"\r{num}/{len(catalog)}")
         sys.stdout.flush()
@@ -200,7 +214,7 @@ def main():
     parser.add_argument("input", type=str,
                         help="input target FITS catalog")
     parser.add_argument('--airmass', type=float, default=1.2)
-    parser.add_argument('--moon', type=str, default='dark', choices=['dark', 'gray', 'bright'])
+    parser.add_argument('--moon', type=str, default='gray', choices=['dark', 'gray', 'bright'])
     parser.add_argument('--seeing', type=float, default=0.8)
     parser.add_argument('-n', '--number', type=int, default=None)
     parser.add_argument('--rules', type=str, default='./../S17_20250122T1441Z_rules.csv', help='Rules definition (FITS or CSV)')
