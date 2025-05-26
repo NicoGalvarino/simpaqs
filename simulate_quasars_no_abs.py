@@ -68,7 +68,7 @@ here = os.path.abspath(os.path.dirname(__file__))
 
 def simulate_quasars(nqso=100, z_list=None, names_list=None, z_range=(1.0, 4.5), wave_range=(3000, 11000), 
                      dust_mode='exponential', #BAL=False, 
-                     output_dir='./../QSO_output/QSOs_balanced_training_set'):
+                     output_dir='/data2/home2/nguerrav/QSO_simpaqs/QSOs_full_cat'):
     """
     Simulate a set of quasars without any absorber templates.
     
@@ -256,7 +256,7 @@ def main():
                         help="Dust sampling mode: 'exponential' or 'uniform' [default=exponential]")
     # parser.add_argument('--bal', action='store_true',
     #                     help="Include broad absorption line features")
-    parser.add_argument("--dir", type=str, default='./../QSO_output/QSOs_balanced_training_set',
+    parser.add_argument("--dir", type=str, default='/data2/home2/nguerrav/QSO_simpaqs/QSOs_full_cat',
                         help="Output directory")
 
     args = parser.parse_args()
@@ -314,8 +314,6 @@ def main():
             # BAL=args.bal,
             output_dir=args.dir
         )
-
-
 
 if __name__ == '__main__':
     main()

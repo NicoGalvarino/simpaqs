@@ -73,11 +73,8 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
     qmost = QMostObservatory(spectrograph)
     rulesets = load_rulesets(qmost, ruleset_fname, rules_fname)
 
-    # airmass = np.random.uniform(1.0, 1.5)  # buscar airmass maximo de 4most
-    # seeing = np.random.normal(0.4, 1.5)  # mean 0.8, std 0.3
-
     catalog['MOON'] = moon
-    catalog['SEEING'] = np.random.normal(0.4, 2.3, len(catalog))
+    catalog['SEEING'] = np.random.normal(0.8, 0.3, len(catalog))
     catalog['AIRMASS'] = np.random.uniform(1.0, 2.5, len(catalog))
 
     # alt = np.arccos(1. / airmass) * 180 / np.pi * u.deg
@@ -211,16 +208,17 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
 
 def main():
     parser = ArgumentParser(description="Generate simulated spectra from 4MOST Target Catalog")
-    parser.add_argument("input", type=str,
-                        help="input target FITS catalog")
+    parser.add_argument("input", type=str, help="input target FITS catalog", 
+                        # default='/data2/home2/nguerrav/QSO_simpaqs/ByCycle_Final_Cat_qso_templates_fobs_notna.fits'
+                        )
     parser.add_argument('--airmass', type=float, default=1.2)
     parser.add_argument('--moon', type=str, default='gray', choices=['dark', 'gray', 'bright'])
     parser.add_argument('--seeing', type=float, default=0.8)
     parser.add_argument('-n', '--number', type=int, default=None)
     parser.add_argument('--rules', type=str, default='./../S17_20250122T1441Z_rules.csv', help='Rules definition (FITS or CSV)')
     parser.add_argument('--ruleset', type=str, default='./../S17_20250122T1443Z_rulesets.csv', help='Ruleset definition (FITS or CSV)')
-    parser.add_argument('--temp-dir', type=str, default='./../QSO_output/QSOs_balanced_training_set', help='Directory of spectral templates')
-    parser.add_argument("-o", "--output", type=str, default='./../QSO_output/QSOs_balanced_training_set_ETC_airmass_1_2_moon_dark_seeing_0_8/', help="output directory")
+    parser.add_argument('--temp-dir', type=str, default='/data2/home2/nguerrav/QSO_simpaqs/QSOs_full_cat/', help='Directory of spectral templates')
+    parser.add_argument("-o", "--output", type=str, default='/data2/home2/nguerrav/QSO_simpaqs/QSOs_full_cat_ETC_L1_output_with_fobs/', help="output directory")
     # parser.add_argument('--arm', type=str, default='ALL', choices=['J', 'joined', 'ALL', 'a'])
     parser.add_argument('--prog', type=str, default='4MOST-ETC',
                         help="Determines the PROG_ID header keyword")
