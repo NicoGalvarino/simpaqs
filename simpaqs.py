@@ -13,7 +13,7 @@ __email__ = 'jens-kristian.krogager@univ-lyon1.fr'
 
 # -- Input parameters
 Z_MIN = 0.55
-Z_MAX = 1.0
+Z_MAX = 2.0
 
 texp_hours = 2
 EXPTIME = texp_hours * 60 * 60  # seconds
@@ -31,8 +31,8 @@ MAG_MAX = 21.0
 # MAG_MIN = 15.0
 # MAG_MAX = 17.0
 
-OUTPUT_DIR = '../simpaqs_outputs_test_dim/etc_output'
-QSO_OUTPUT_DIR = '../simpaqs_outputs_test_dim/quasar_models'
+OUTPUT_DIR = './../simpaqs_outputs_test/etc_output'
+QSO_OUTPUT_DIR = './../simpaqs_outputs_test/quasar_models'
 
 BAL = False
 

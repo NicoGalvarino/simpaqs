@@ -6,7 +6,7 @@ for a given input target catalog and a set of spectral rules and rulesets.
 __author__ = 'JK Krogager'
 
 from astropy.io import fits
-from astropy.table import Table
+from astropy.table import Table, vstack
 from astropy.time import Time
 import astropy.units as u
 from argparse import ArgumentParser
@@ -91,114 +91,127 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
 
     for num, row in enumerate(catalog, 1):
 
-        row['MOON'] = moon
-        seeing = row['SEEING']
-        airmass = row['AIRMASS']
-
-        alt = np.arccos(1. / airmass) * 180 / np.pi * u.deg
-        obs = qmost(alt, seeing*u.arcsec, moon)
-
-        ruleset_name = row['RULESET']
-        target_name = row['NAME']
-        ruleset = rulesets[ruleset_name]
-        etc = ruleset.etc(alt, seeing*u.arcsec, moon)
-        template_fname = os.path.join(template_path, row['TEMPLATE'])
-        SED = SEDTemplate(template_fname)
-
-        # Add the target spectrum from the template with a magnitude
-        mag_type_str = row['MAG_TYPE']
-        survey, band, ab_vega = mag_type_str.split('_')
-        mag_type = [filt_id for filt_id in Filter.list()
-                    if survey.upper() in filt_id.upper() and '.'+band in filt_id][0]
-        mag_unit = u.ABmag
-        # if ab_vega != 'AB':
-        #     print("Warning not AB magnitude in catalog... may be incorrect")
-        mag = row['MAG'] * mag_unit
-        # SED = SED.redshift(row['REDSHIFT_ESTIMATE'])
-        etc.set_target(SED(mag, mag_type), 'point')
-        obs.set_target(SED(mag, mag_type), 'point')
-
-        # Get and print the exposure time
-        texp_col = 'texp_' + moon[0]
-        print(texp_col)
-        if texp_col in catalog.colnames:
-            texp = row[texp_col] * u.min
-        else:
-            etc.set_target(SED(mag, mag_type), 'point')
-            texp = etc.get_exptime()
-        if texp < t_min:
-            texp = t_min
-        if texp > t_max:
-            texp = t_max
-
-        if 'fobs' in catalog.colnames:
-            exptime_log.append({'NAME': target_name, 'MAG': row['MAG'],
-                            'TEXP': texp, 'fobs':row['fobs'], 'REDSHIFT': row['REDSHIFT_ESTIMATE'], 
-                            'SUBSURVEY': row['SUBSURVEY'], 'SEEING': seeing, 'AIRMASS': airmass})
-            print(row['fobs'])
-            print(texp)
-            texp = row['fobs'] * texp
-            print(texp)
-        else:
-            exptime_log.append({'NAME': target_name, 'MAG': row['MAG'],
-                            'TEXP': texp, 'REDSHIFT': row['REDSHIFT_ESTIMATE'], 
-                            'SUBSURVEY': row['SUBSURVEY'], 'SEEING': seeing, 'AIRMASS': airmass})
-
-        res = obs.expose(texp)  # 'wavelength', 'binwidth', 'efficiency', 'gain', , 'target', 'sky', 'dark', 'ron', 'noise'
-        if np.isnan(res['target']).any():
-            res['target'][np.isnan(res['target'])] = 0.
-        if np.isnan(res['sky']).any():
-            res['sky'][np.isnan(res['sky'])] = 0.
-
-        # Add cosmic rays:
-        N_pix = len(res)
-        N_cosmic = np.random.poisson(CR_rate * texp.value * N_pix * 0.8)
-        idx = np.random.choice(np.arange(N_pix), N_cosmic, replace=False)
-        CR_boost = 10**np.random.normal(2.0, 0.15, N_cosmic) * u.electron
-        res['target'][idx] += CR_boost
-        res['noise'][idx] = np.sqrt(res['noise'][idx]**2 + CR_boost * u.electron)
-
-        dxu = L1DXU(qmost, res, texp)
-
-        # Write individual L1 files
-        # if l1_type[0].upper() == 'A':
-        #     for arm_name in qmost.keys():
-        #         INST = 'L' if spectrograph == 'lrs' else 'H'
-        #         INST += arm_name.upper()[0]
-        #         # INST += '1'
-
-        #         z_str = str(np.round(row['REDSHIFT_ESTIMATE'], 4))
-        #         model_id = f'QSO_sim_ETC_z{z_str}_{target_name}'
-        #         output_arm = os.path.join(output_dir, f'{model_id}_{INST}.fits')  # saves fluxin ADU
-        #         try:
-        #             hdu_list = dxu.per_arm(arm_name)
-        #             hdu_list = update_header(hdu_list, row)
-        #             hdu_list.writeto(output_arm, overwrite=True)
-        #         except ValueError as e:
-        #             print(f"Failed to save the spectrum: {row['TEMPLATE']}")
-        #             print(f"for arm: {arm_name}")
-
-        # if spectrograph.lower() == 'lrs':
-        # Create JOINED L1 SPECTRUM:
         z_str = str(np.round(row['REDSHIFT_ESTIMATE'], 4))
         mag_str = str(np.round(row['MAG'], 2))
+        ruleset_name = row['RULESET']
+        target_name = row['NAME']
         model_id = f'QSO_sim_ETC_z{z_str}_mag{mag_str}_{target_name}'
+        print(model_id, '\n')
         output = os.path.join(output_dir, f"{model_id}_LJ1.fits")
-        print(model_id)
-        try:
-            hdu_list = dxu.joined()
-            hdu_list = update_header(hdu_list, row, prog_id)
-            hdu_list.writeto(output, overwrite=True)
-        # except ValueError as e:
-        #     print(f"Failed to save the joined spectrum: {row['TEMPLATE']}")
-        except (ValueError, IndexError) as e:
-            print(f"\nFailed to save the joined spectrum for {target_name} (z={row['REDSHIFT_ESTIMATE']}): {str(e)}")
 
-        sys.stdout.write(f"\r{num}/{len(catalog)}")
+        if os.path.exists(output):
+            pass  # spectrum already simulated
+
+        else:
+            row['MOON'] = moon
+            seeing = row['SEEING']
+            airmass = row['AIRMASS']
+
+            alt = np.arccos(1. / airmass) * 180 / np.pi * u.deg
+            obs = qmost(alt, seeing*u.arcsec, moon)
+
+            ruleset = rulesets[ruleset_name]
+            etc = ruleset.etc(alt, seeing*u.arcsec, moon)
+            template_fname = os.path.join(template_path, row['TEMPLATE'])
+            SED = SEDTemplate(template_fname)
+
+            # Add the target spectrum from the template with a magnitude
+            mag_type_str = row['MAG_TYPE']
+            survey, band, ab_vega = mag_type_str.split('_')
+            mag_type = [filt_id for filt_id in Filter.list()
+                        if survey.upper() in filt_id.upper() and '.'+band in filt_id][0]
+            mag_unit = u.ABmag
+            # if ab_vega != 'AB':
+            #     print("Warning not AB magnitude in catalog... may be incorrect")
+            mag = row['MAG'] * mag_unit
+            # SED = SED.redshift(row['REDSHIFT_ESTIMATE'])
+            etc.set_target(SED(mag, mag_type), 'point')
+            obs.set_target(SED(mag, mag_type), 'point')
+
+            # Get and print the exposure time
+            texp_col = 'texp_' + moon[0]
+            # print(texp_col)
+            if texp_col in catalog.colnames:
+                texp = row[texp_col] * u.min
+            else:
+                etc.set_target(SED(mag, mag_type), 'point')
+                texp = etc.get_exptime()
+            if texp < t_min:
+                texp = t_min
+            if texp > t_max:
+                texp = t_max
+
+            if 'fobs' in catalog.colnames:
+                exptime_log.append({'NAME': target_name, 'MAG': row['MAG'],
+                                'TEXP': texp, 'fobs':row['fobs'], 'REDSHIFT': row['REDSHIFT_ESTIMATE'], 
+                                'SUBSURVEY': row['SUBSURVEY'], 'SEEING': seeing, 'AIRMASS': airmass})
+                # print(row['fobs'])
+                # print(texp)
+                texp = row['fobs'] * texp
+                # print(texp)
+            else:
+                exptime_log.append({'NAME': target_name, 'MAG': row['MAG'],
+                                'TEXP': texp, 'REDSHIFT': row['REDSHIFT_ESTIMATE'], 
+                                'SUBSURVEY': row['SUBSURVEY'], 'SEEING': seeing, 'AIRMASS': airmass})
+
+            res = obs.expose(texp)  # 'wavelength', 'binwidth', 'efficiency', 'gain', , 'target', 'sky', 'dark', 'ron', 'noise'
+            if np.isnan(res['target']).any():
+                res['target'][np.isnan(res['target'])] = 0.
+            if np.isnan(res['sky']).any():
+                res['sky'][np.isnan(res['sky'])] = 0.
+
+            # Add cosmic rays:
+            N_pix = len(res)
+            N_cosmic = np.random.poisson(CR_rate * texp.value * N_pix * 0.8)
+            idx = np.random.choice(np.arange(N_pix), N_cosmic, replace=False)
+            CR_boost = 10**np.random.normal(2.0, 0.15, N_cosmic) * u.electron
+            res['target'][idx] += CR_boost
+            res['noise'][idx] = np.sqrt(res['noise'][idx]**2 + CR_boost * u.electron)
+
+            dxu = L1DXU(qmost, res, texp)
+
+            # Write individual L1 files
+            # if l1_type[0].upper() == 'A':
+            #     for arm_name in qmost.keys():
+            #         INST = 'L' if spectrograph == 'lrs' else 'H'
+            #         INST += arm_name.upper()[0]
+            #         # INST += '1'
+
+            #         z_str = str(np.round(row['REDSHIFT_ESTIMATE'], 4))
+            #         model_id = f'QSO_sim_ETC_z{z_str}_{target_name}'
+            #         output_arm = os.path.join(output_dir, f'{model_id}_{INST}.fits')  # saves fluxin ADU
+            #         try:
+            #             hdu_list = dxu.per_arm(arm_name)
+            #             hdu_list = update_header(hdu_list, row)
+            #             hdu_list.writeto(output_arm, overwrite=True)
+            #         except ValueError as e:
+            #             print(f"Failed to save the spectrum: {row['TEMPLATE']}")
+            #             print(f"for arm: {arm_name}")
+
+            # if spectrograph.lower() == 'lrs':
+            # Create JOINED L1 SPECTRUM:
+
+            try:
+                hdu_list = dxu.joined()
+                hdu_list = update_header(hdu_list, row, prog_id)
+                hdu_list.writeto(output, overwrite=True)
+            # except ValueError as e:
+            #     print(f"Failed to save the joined spectrum: {row['TEMPLATE']}")
+            except (ValueError, IndexError) as e:
+                print(f"\nFailed to save the joined spectrum for {target_name} (z={row['REDSHIFT_ESTIMATE']}): {str(e)}")
+
+        sys.stdout.write(f"\r{num}/{len(catalog)} \n")
         sys.stdout.flush()
     exptimes = Table(exptime_log)
     exptimes.meta['comments'] = ['Exposure times in seconds']
     log_fname = os.path.join(output_dir, 'exposure_times.csv')
+    
+    if os.path.exists(f'{log_fname}'):
+        exptimes = Table.read(f'{output_dir}/model_parameters.fits')
+        exptimes = vstack([exptimes, exptimes.data])
+    else:
+        exptimes = exptimes.data
+
     exptimes.write(log_fname,
                    formats={'TEXP': '%.1f', 'MAG': '%.2f', 'REDSHIFT': '%.4f'},
                    overwrite=True, comment='# ', format='csv')

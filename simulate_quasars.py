@@ -163,7 +163,7 @@ def add_quasar_continuum(templates, dust_mode='exponential', BAL=False, output_d
             #print(f'\ninterpolation launched for {model_id} from wavelength {wav_min:.2f} to {wav_max:.2f}
             # for appearance of values greater than 1 in the abs_template')
         
-        spec = spec * absorber['FLUX_DENSITY']
+        spec = spec * absorber['FLUX_DENSITY']  # continuum * absorber
         bal_type = 'none'
         if BAL:
             bal_type = np.random.choice(['hibal_1', 'hibal_2', 'felobal', 'none'],
