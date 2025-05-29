@@ -66,9 +66,10 @@ here = os.path.abspath(os.path.dirname(__file__))
 #             models[key] = (wl, trans)
 #     return models
 
-def simulate_quasars(nqso=100, z_list=None, names_list=None, z_range=(1.0, 4.5), wave_range=(3000, 11000), 
+def simulate_quasars(nqso=None, z_list=None, names_list=None, z_range=(1.0, 4.5), 
+                     wavelen_grid=None, wave_range=(3000, 11000), 
                      dust_mode='exponential', #BAL=False, 
-                     output_dir='/data2/home2/nguerrav/QSO_simpaqs/QSOs_full_cat'):
+                     output_dir='/data2/home2/nguerrav/QSO_simpaqs/QSO_simpaqs/QSOs_balanced_training_set_tng_grid'):
     """
     Simulate a set of quasars without any absorber templates.
     
@@ -96,9 +97,6 @@ def simulate_quasars(nqso=100, z_list=None, names_list=None, z_range=(1.0, 4.5),
     subset : astropy.table.Table
         Table with quasar parameters
     """
-    # Generate wavelength grid
-    wave = np.arange(wave_range[0], wave_range[1], 0.1)  # 1 Angstrom sampling
-    # TNG wavelength grid here
 
     # if BAL:
     #     bal_models = load_bal_templates()
@@ -106,14 +104,19 @@ def simulate_quasars(nqso=100, z_list=None, names_list=None, z_range=(1.0, 4.5),
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
+    if wavelen_grid is not None:
+        wave = np.load(wavelen_grid)
+    else:
+        wave = np.arange(wave_range[0], wave_range[1], 0.1)
+        # TNG wavelength grid here
+
     if z_list is not None:
         z_all = np.array(z_list)
         nqso = len(z_all)
         print(f"Using {nqso} provided redshifts")
     else:
-        # Generate random redshifts within the specified range
         z_all = np.random.uniform(z_range[0], z_range[1], nqso)
-    
+
     # Sampling MBH and LEdd from Rakshit, Stalin & Kotilainen (2020)
     logM_BH = np.random.normal(8.67, 0.5, nqso)
     logR_Edd = np.random.normal(-0.83, 0.4, nqso)
@@ -135,12 +138,16 @@ def simulate_quasars(nqso=100, z_list=None, names_list=None, z_range=(1.0, 4.5),
     qsos = QsoSimPoints([M, z, dust], cosmo=Planck13, units='luminosity')
 
     # use the canonical values for power law continuum slopes in FUV/NUV, with breakpoint at 1215A
-    contVar = BrokenPowerLawContinuumVar([GaussianSampler(-1.7, 0.1),
-                                          GaussianSampler(-0.3, 0.2)],
-                                         [1215.])
+    contVar = BrokenPowerLawContinuumVar([
+        GaussianSampler(-1.7, 0.1),  # slope before break
+        GaussianSampler(-0.3, 0.2)],  # slope after break
+        [1215.]  # breakpoint is fixed --> GaussianSampler(1215., 5.)?
+        )
 
     # generate lines using the Baldwin Effect emission line model from BOSS DR9
-    emLineVar = generateBEffEmissionLines(qsos.absMag)
+    emLineVar = generateBEffEmissionLines(qsos.absMag)  # lines listed in /home/nguerrav/4MOST_like_data/simqso/simqso/data
+                                                        # for each line: wavelength, logEW, logWidth
+    print('emLineVar:', emLineVar()[0][0], '\n')
 
     # the default iron template from Vestergaard & Wilkes 2001 was modified to fit BOSS spectra
     fescales = [(0, 1540, 0.5),
@@ -149,9 +156,12 @@ def simulate_quasars(nqso=100, z_list=None, names_list=None, z_range=(1.0, 4.5),
                 (1868, 2140, 1.0),
                 (2140, 3500, 1.0)]
     feVar = FeTemplateVar(VW01FeTemplateGrid(qsos.z, wave, scales=fescales))
+    # Default velocity broadening = 5000 km/s FWHM
 
     # Now add the features to the QSO grid
     qsos.addVars([contVar, emLineVar, feVar])
+
+    print('qsos.data before: \n', qsos.data)
 
     # ready to generate spectra
     meta, spectra = buildSpectraBulk(wave, qsos, saveSpectra=True)
@@ -164,10 +174,12 @@ def simulate_quasars(nqso=100, z_list=None, names_list=None, z_range=(1.0, 4.5),
     dnum = len(glob.glob(f'{output_dir}/QSOs_*.fits')) + 1
     for num, spec in enumerate(tqdm(spectra)):
         z_str = str(np.round(z_all[num], 4))#.replace('.', '_')
-        target_name = names_list[num]
-        
-        model_id = f'QSO_sim_z{z_str}_{target_name}'
-        # model_id = f'QSO_z{z_str}_{num+dnum:06}'
+
+        if names_list is not None:
+            target_name = names_list[num]
+            model_id = f'QSO_sim_z{z_str}_{target_name}'
+        else:
+            model_id = f'QSO_z{z_str}_{num+dnum:06}'
 
         filename = f'{output_dir}/{model_id}.fits'
         all_ids.append(model_id)
@@ -212,38 +224,37 @@ def simulate_quasars(nqso=100, z_list=None, names_list=None, z_range=(1.0, 4.5),
     qsos.data['LOG_MBH'] = logM_BH
     qsos.data['LOG_REDD'] = logR_Edd
     # qsos.data['BAL_TYPE'] = all_bal_types
+    # qsos.data['']
 
     if names_list is not None:
         qsos.data['NAME'] = names_list
     
-    if os.path.exists(f'{output_dir}/model_parameters.fits'):
-        tab = Table.read(f'{output_dir}/model_parameters.fits')
+    print('qsos.data after: \n', qsos.data)
+    
+    if os.path.exists(f'{output_dir}/QSO_parameters.fits'):
+        tab = Table.read(f'{output_dir}/QSO_parameters.fits')
         tab = vstack([tab, qsos.data])
     else:
         tab = qsos.data
     tab.write(f'{output_dir}/model_parameters.fits', overwrite=True)
-    
-    columns = ['ID', 'z', 'absMag', 'smcDustEBV', 'LOG_MBH', 'LOG_REDD']
-    if names_list is not None:
-        columns.append('NAME')
-    
-    subset = qsos.data[columns]
-    subset.rename_column('z', 'REDSHIFT')
 
-    if os.path.exists(f'{output_dir}/model_input.csv'):
-        old_subset = Table.read(f'{output_dir}/model_input.csv')
-        subset = vstack([old_subset, subset])
-    subset.write(f'{output_dir}/model_input.csv', overwrite=True)
-    return subset
+    # if os.path.exists(f'{output_dir}/model_input.csv'):
+    #     old_subset = Table.read(f'{output_dir}/model_input.csv')
+    #     subset = vstack([old_subset, subset])
+    # subset.write(f'{output_dir}/model_input.csv', overwrite=True)
+    
+    # return tab
 
 
 def main():
     from argparse import ArgumentParser
     parser = ArgumentParser('Simulate quasars without absorber templates')
-    # parser.add_argument("-n", "--number", type=int, default=100,
-    #                     help="Number of quasars to simulate [default=100]")
+    parser.add_argument("--number", type=int, default=None,
+                        help="Number of quasars to simulate [default=100]")
     parser.add_argument("--zlist", type=str, default=None,
                         help="File containing list of redshifts to use (one per line)")
+    parser.add_argument("--wavelen_grid", type=str, default=None,
+                        help="File with wavelength grid over which to simulate the QSOs")
     # parser.add_argument("--zmin", type=float, default=1.0,
     #                     help="Minimum redshift [default=1.0]")
     # parser.add_argument("--zmax", type=float, default=4.5,
@@ -256,7 +267,7 @@ def main():
                         help="Dust sampling mode: 'exponential' or 'uniform' [default=exponential]")
     # parser.add_argument('--bal', action='store_true',
     #                     help="Include broad absorption line features")
-    parser.add_argument("--dir", type=str, default='/data2/home2/nguerrav/QSO_simpaqs/QSOs_full_cat',
+    parser.add_argument("--dir", type=str, default='/data2/home2/nguerrav/QSO_simpaqs/QSOs_balanced_training_set_tng_grid',
                         help="Output directory")
 
     args = parser.parse_args()
@@ -268,12 +279,16 @@ def main():
     # print(f"BAL features: {'Yes' if args.bal else 'No'}")
     print(f"Output directory: {args.dir}")
 
-    cat = Table.read('/data2/home2/nguerrav/QSO_simpaqs/ByCycle_Final_Cat_with_all_S17_cols.fits').to_pandas()
+    cat = Table.read('/data2/home2/nguerrav/Catalogues/ByCycle_Final_Cat_with_all_S17_cols.fits').to_pandas()
+    # cat = Table.read('/data2/home2/nguerrav/Catalogues/ByCycle_balanced_subset_QSOs.fits').to_pandas()
 
-    nqsos = cat.shape[0]
+    if args.number is not None:
+        nqsos = args.number
+    else:
+        nqsos = cat.shape[0]
     print(f"Total number of quasars to simulate: {nqsos}")
 
-    if nqsos > 30000:
+    if nqsos > 50000:
         # Process in chunks to manage memory
         chunk_size = 10000
         num_chunks = (nqsos + chunk_size - 1) // chunk_size
@@ -305,8 +320,8 @@ def main():
         names = cat['NAME'].to_numpy(dtype=str)
 
         simulate_quasars(
-            nqso=nqsos,
-            # z_range=(args.zmin, args.zmax),
+            nqso=args.number,
+            z_range=(args.zmin, args.zmax),
             z_list=z_arr, 
             names_list=names,
             wave_range=(args.wmin, args.wmax),

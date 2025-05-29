@@ -207,7 +207,7 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
     log_fname = os.path.join(output_dir, 'exposure_times.csv')
     
     if os.path.exists(f'{log_fname}'):
-        exptimes = Table.read(f'{output_dir}/model_parameters.fits')
+        exptimes = Table.read(log_fname)
         exptimes = vstack([exptimes, exptimes.data])
     else:
         exptimes = exptimes.data
