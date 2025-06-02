@@ -15,6 +15,10 @@ import warnings
 import os
 import sys
 import datetime
+import pandas as pd
+import warnings
+warnings.filterwarnings('ignore', message='invalid value encountered in divide', category=RuntimeWarning)
+# warnings.filterwarnings('default')
 
 from qmostetc import SEDTemplate, QMostObservatory, Ruleset, Rule, Filter, L1DXU
 
@@ -85,9 +89,6 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
     print("Applying 4MOST ETC to the catalog:")
 
     exptime_log = []
-    if N_targets:
-        idx = np.random.choice(np.arange(len(catalog)), N_targets, replace=False)
-        catalog = catalog[idx]
 
     for num, row in enumerate(catalog, 1):
 
@@ -96,7 +97,7 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
         ruleset_name = row['RULESET']
         target_name = row['NAME']
         model_id = f'QSO_sim_ETC_z{z_str}_mag{mag_str}_{target_name}'
-        print(model_id, '\n')
+        # print(model_id, '\n')
         output = os.path.join(output_dir, f"{model_id}_LJ1.fits")
 
         if os.path.exists(output):
@@ -142,16 +143,16 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
                 texp = t_max
 
             if 'fobs' in catalog.colnames:
+
+                texp_fobs = row['fobs'] * texp
                 exptime_log.append({'NAME': target_name, 'MAG': row['MAG'],
-                                'TEXP': texp, 'fobs':row['fobs'], 'REDSHIFT': row['REDSHIFT_ESTIMATE'], 
+                                'TEXP': texp, 'fobs':row['fobs'], 'TEXP_fobs':texp_fobs, 
+                                'REDSHIFT': row['REDSHIFT_ESTIMATE'], 
                                 'SUBSURVEY': row['SUBSURVEY'], 'SEEING': seeing, 'AIRMASS': airmass})
-                # print(row['fobs'])
-                # print(texp)
-                texp = row['fobs'] * texp
-                # print(texp)
             else:
                 exptime_log.append({'NAME': target_name, 'MAG': row['MAG'],
-                                'TEXP': texp, 'REDSHIFT': row['REDSHIFT_ESTIMATE'], 
+                                'TEXP': texp, 
+                                'REDSHIFT': row['REDSHIFT_ESTIMATE'], 
                                 'SUBSURVEY': row['SUBSURVEY'], 'SEEING': seeing, 'AIRMASS': airmass})
 
             res = obs.expose(texp)  # 'wavelength', 'binwidth', 'efficiency', 'gain', , 'target', 'sky', 'dark', 'ron', 'noise'
@@ -198,32 +199,54 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
             # except ValueError as e:
             #     print(f"Failed to save the joined spectrum: {row['TEMPLATE']}")
             except (ValueError, IndexError) as e:
-                print(f"\nFailed to save the joined spectrum for {target_name} (z={row['REDSHIFT_ESTIMATE']}): {str(e)}")
+                error_file = os.path.join(output_dir, 'failed_spectra.txt')
+                error_message = f"Failed to save spectrum for {target_name} (z={row['REDSHIFT_ESTIMATE']}, mag={row['MAG']}): {str(e)}"
+                with open(error_file, 'a') as f:
+                    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    f.write(f"[{timestamp}] {error_message}\n")
+                print(error_message)
 
-        sys.stdout.write(f"\r{num}/{len(catalog)} \n")
+        if (num / len(catalog)) * 100 % 5.0 == 0.0:  # every 5%
+            # sys.stdout.write(f"\r{num}/{len(catalog)} \n")
+            sys.stdout.write(f"\r{100*num/len(catalog)}% done \n")
         sys.stdout.flush()
-    exptimes = Table(exptime_log)
-    exptimes.meta['comments'] = ['Exposure times in seconds']
+    # exptimes = Table(exptime_log)
+    exptimes = pd.DataFrame(exptime_log)
+    # exptimes.meta['comments'] = ['Exposure times in seconds']
     log_fname = os.path.join(output_dir, 'exposure_times.csv')
+    # print('type(exptime_log):', type(exptime_log))
+    # print('exptime_log:', exptime_log)
+    # print(exptimes)
     
-    if os.path.exists(f'{log_fname}'):
-        exptimes = Table.read(log_fname)
-        exptimes = vstack([exptimes, exptimes.data])
+    if os.path.exists(log_fname):
+        exptimes_prev = pd.read_csv(log_fname)  # Table.read(log_fname)
+        # exptimes = vstack([exptimes_prev, exptimes])
+        exptimes = pd.concat([exptimes_prev, exptimes], axis=0, ignore_index=True)
     else:
-        exptimes = exptimes.data
+        # exptimes = exptimes.data
+        pass
 
-    exptimes.write(log_fname,
-                   formats={'TEXP': '%.1f', 'MAG': '%.2f', 'REDSHIFT': '%.4f'},
-                   overwrite=True, comment='# ', format='csv')
-    print("")
+    # with warnings.catch_warnings():
+    #     warnings.simplefilter("ignore")
+    #     exptimes.write(log_fname,
+    #                formats={'TEXP': '%.1f', 'TEXP_fobs': '%.1f', 
+    #                         'MAG': '%.2f', 'REDSHIFT': '%.4f'},
+    #                overwrite=True, comment='# ', format='csv')
+    exptimes['TEXP'] = exptimes['TEXP'].round(1)
+    exptimes['MAG'] = exptimes['MAG'].round(2)
+    exptimes['REDSHIFT'] = exptimes['REDSHIFT'].round(4)
+    if 'TEXP_fobs' in exptimes.columns:
+        exptimes['TEXP_fobs'] = exptimes['TEXP_fobs'].round(1)
+    exptimes.to_csv(log_fname, index=False)
+    print(' ')
 
 
 
 def main():
     parser = ArgumentParser(description="Generate simulated spectra from 4MOST Target Catalog")
-    parser.add_argument("input", type=str, help="input target FITS catalog", 
-                        # default='/data2/home2/nguerrav/QSO_simpaqs/ByCycle_Final_Cat_qso_templates_fobs_notna.fits'
-                        )
+    # parser.add_argument("input", type=str, help="input target FITS catalog", 
+    #                     # default='/data2/home2/nguerrav/QSO_simpaqs/ByCycle_Final_Cat_qso_templates_fobs_notna.fits'
+    #                     )
     parser.add_argument('--airmass', type=float, default=1.2)
     parser.add_argument('--moon', type=str, default='gray', choices=['dark', 'gray', 'bright'])
     parser.add_argument('--seeing', type=float, default=0.8)
@@ -239,28 +262,60 @@ def main():
     args = parser.parse_args()
 
     t1 = datetime.datetime.now()
-    catalog = Table.read(args.input)
+    catalog = Table.read('/data2/home2/nguerrav/Catalogues/ByCycle_Final_Cat_fobs_qso_templates.fits')
 
-    process_catalog(catalog,
-                    ruleset_fname=args.ruleset,
-                    rules_fname=args.rules,
-                    output_dir=args.output,
-                    template_path=args.temp_dir,
-                    # airmass=args.airmass,
-                    # seeing=args.seeing,
-                    moon=args.moon,
-                    # l1_type=args.arm,
-                    N_targets=args.number,
-                    prog_id=args.prog,
-                    )
-    t2 = datetime.datetime.now()
-    dt = t2 - t1
-    if args.number:
+    if args.number is not None:
         N_targets = args.number
+        idx = np.random.choice(np.arange(len(catalog)), N_targets, replace=False)
+        catalog = catalog[idx]
     else:
         N_targets = len(catalog)
-    print(f"Finished simulation of {N_targets} targets in {dt.total_seconds():.1f} seconds")
 
+    if N_targets > 50000:
+        # Process in chunks to manage memory
+        chunk_size = 10000
+        num_chunks = (N_targets + chunk_size - 1) // chunk_size
+        
+        for chunk_idx in range(num_chunks):
+            start_idx = chunk_idx * chunk_size
+            end_idx = min((chunk_idx + 1) * chunk_size, N_targets)
+
+            print(f"\nProcessing chunk {chunk_idx+1}/{num_chunks} (QSOs {start_idx+1}-{end_idx})")
+            
+            chunk_cat = catalog[start_idx:end_idx]
+
+            process_catalog(chunk_cat,
+                            ruleset_fname=args.ruleset,
+                            rules_fname=args.rules,
+                            output_dir=args.output,
+                            template_path=args.temp_dir,
+                            # airmass=args.airmass,
+                            # seeing=args.seeing,
+                            moon=args.moon,
+                            # l1_type=args.arm,
+                            N_targets=N_targets,
+                            prog_id=args.prog,
+                            )
+
+    else:
+
+        process_catalog(catalog,
+                ruleset_fname=args.ruleset,
+                rules_fname=args.rules,
+                output_dir=args.output,
+                template_path=args.temp_dir,
+                # airmass=args.airmass,
+                # seeing=args.seeing,
+                moon=args.moon,
+                # l1_type=args.arm,
+                N_targets=N_targets,
+                prog_id=args.prog,
+                )
+
+    t2 = datetime.datetime.now()
+    dt = t2 - t1
+    
+    print(f"Finished simulation of {N_targets} targets in {dt.total_seconds():.1f} seconds")
 
 if __name__ == '__main__':
     main()

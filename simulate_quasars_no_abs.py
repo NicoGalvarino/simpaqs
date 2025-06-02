@@ -30,8 +30,6 @@ with the following parameters:
     LOG_REDD: log of Eddington ratio
 """
 
-__author__ = 'Jens-Kristian Krogager, modified'
-
 from astropy.cosmology import Planck13
 from astropy.table import Table, vstack
 from astropy.io import fits
@@ -47,6 +45,157 @@ from simqso.sqgrids import *
 from simqso import sqbase
 from simqso.sqrun import buildSpectraBulk, buildQsoSpectrum
 from tqdm import tqdm
+
+col_format_all_S17 = {
+    'NAME':pd.StringDtype(),
+    'RA':np.float64, 'DEC':np.float64,
+    'PMRA':np.float32, 'PMDEC':np.float32,
+    'EPOCH':np.float32, 'RESOLUTION':np.int16,
+    'SUBSURVEY':pd.StringDtype(),
+    'TEMPLATE':pd.StringDtype(), 
+    'RULESET':pd.StringDtype(),
+    'EXTENT_FLAG':np.int32,
+    'EXTENT_PARAMETER':np.float32,'EXTENT_INDEX':np.float32,
+    'MAG_TYPE':pd.StringDtype(),
+    'MAG':np.float32, 'MAG_ERR':np.float32,
+    'DATE_EARLIEST':np.float64, 'DATE_LATEST':np.float64,
+    'CADENCE':np.int64,
+    'REDDENING':np.float32,
+    'REDSHIFT_ESTIMATE':np.float32,
+    'REDSHIFT_ERROR':np.float32,
+    'CAL_MAG_ID_BLUE':pd.StringDtype(),
+    'CAL_MAG_ID_GREEN':pd.StringDtype(),
+    'CAL_MAG_ID_RED':pd.StringDtype(),
+    'CAL_MAG_ERR_BLUE':np.float32,
+    'CAL_MAG_ERR_GREEN':np.float32,
+    'CAL_MAG_ERR_RED':np.float32,
+    'CAL_MAG_BLUE':np.float32,
+    'CAL_MAG_GREEN':np.float32,
+    'CAL_MAG_RED':np.float32,
+    'CLASSIFICATION':pd.StringDtype(),
+    'CLASS_SPEC':pd.StringDtype(),
+    'COMPLETENESS':np.float32,
+    'PARALLAX':np.float32,
+    'SWEEP_NAME':pd.StringDtype(), 
+    'BRICKNAME':pd.StringDtype(), 
+    'TYPE':pd.StringDtype(), 
+    'BAND_LEGACY':pd.StringDtype(), 
+    'REFERENCE_BAND':pd.StringDtype(), 
+    'COMBINATION_USE':pd.StringDtype(), 
+    'REDSHIFT_REF':pd.StringDtype(), 
+    'EBV':np.float64, 
+    'PLXSIG': np.float64, 
+    'PMSIG': np.float64, 
+    'SN_MAX': np.float64, 
+    'MAG_G': np.float32, 
+    'MAGERR_G': np.float32, 
+    'MAG_R': np.float32, 
+    'MAGERR_R': np.float32, 
+    'MAG_I': np.float32, 
+    'MAGERR_I': np.float32, 
+    'MAG_Z': np.float32, 
+    'MAGERR_Z': np.float32, 
+    'MAG_Y': np.float32, 
+    'MAGERR_Y': np.float32, 
+    'MAG_J': np.float32, 
+    'MAGERR_J': np.float32, 
+    'MAG_H': np.float32, 
+    'MAGERR_H': np.float32, 
+    'MAG_K': np.float32, 
+    'MAGERR_K': np.float32, 
+    'MAG_W1': np.float32, 
+    'MAGERR_W1': np.float32, 
+    'MAG_W2': np.float32, 
+    'MAGERR_W2': np.float32, 
+    'SPECTYPE_DESI': pd.StringDtype()
+    }
+
+col_units = {
+    "RA": "deg", "DEC": "deg", "PMRA": "mas/yr", "PMDEC": "mas/yr",
+    "EPOCH": "yr", "MAG": "mag", "MAG_ERR": "mag", "EXTENT_PARAMETER": "arcsec",
+    "DATE_EARLIEST": "d", "DATE_LATEST": "d", "REDDENING": "mag",
+    "CAL_MAG_BLUE": "mag", "CAL_MAG_GREEN": "mag", "CAL_MAG_RED": "mag",
+    "CAL_MAG_ERR_BLUE": "mag", "CAL_MAG_ERR_GREEN": "mag", "CAL_MAG_ERR_RED": "mag",
+    "PARALLAX": "mas",
+}
+
+def cols_format_dict(format_dict, dataframe):
+    matching_columns = {}
+    
+    for col in dataframe.columns:
+        if col in format_dict:
+            matching_columns[col] = format_dict[col]
+    
+    return matching_columns
+
+def format_pd_for_fits(df):
+    
+    df_copy = df.copy()
+    
+    for col_name in df_copy.columns:  # object to string
+
+        col_values = df_copy[col_name].values
+
+        if col_values.dtype == 'object':
+            df_copy[col_name] = df_copy[col_name].astype(pd.StringDtype())
+
+    format_cols = cols_format_dict(col_format_all_S17, df_copy)
+    df_copy = df_copy.astype(format_cols)
+
+    for col_name in df_copy.columns:  # fill empty cells
+
+        col_series = df_copy[col_name].values
+
+        if pd.api.types.is_string_dtype(df_copy[col_name]) or isinstance(col_series.dtype, pd.StringDtype):
+            df_copy[col_name] = df_copy[col_name].fillna('-')
+        else:
+            if col_name in ['MAG_Z', 'MAG', 'MAGERR_Z', 'MAG_ERR', 'MAG_G', 'CAL_MAG_BLUE', 
+                            'MAGERR_G', 'CAL_MAG_ERR_BLUE', 'MAG_R', 'CAL_MAG_GREEN', 'MAGERR_R', 'CAL_MAG_ERR_GREEN', 
+                            'MAG_I', 'CAL_MAG_RED', 'MAGERR_I', 'CAL_MAG_ERR_RED']:
+                df_copy[col_name] = df_copy[col_name].fillna(1.0)
+            else:
+                df_copy[col_name] = df_copy[col_name].fillna(-999)
+    
+    df_copy.reset_index(drop=True, inplace=True)
+    return df_copy
+
+def save_to_fits(df, filepath, meta=None):
+
+    df_for_fits = format_pd_for_fits(df)
+    
+    t = Table()
+
+    format_cols = cols_format_dict(col_format_all_S17, df_for_fits)
+    for col_name in df_for_fits.columns:
+        if col_name in format_cols.keys():
+            col_data = df_for_fits[col_name].astype(col_format_all_S17[col_name])
+            col_data = col_data.values
+        else:
+            col_data = df_for_fits[col_name].values
+
+        if hasattr(col_data, 'values'):
+            t[col_name] = col_data.values
+        else:
+            t[col_name] = [x for x in col_data]
+            
+    if meta:
+        t.meta.update(meta)
+
+    t.write(filepath, format='fits', overwrite=True)
+
+def pandas_from_fits(filepath):
+    t = Table.read(filepath, format='fits')
+    
+    t = t.to_pandas()
+
+    format_cols = cols_format_dict(col_format_all_S17, t)
+    t = t.astype(format_cols)
+
+    return t
+
+# ------------------------------------------------------------------------------------------------------------
+
+__author__ = 'Jens-Kristian Krogager, modified'
 
 
 here = os.path.abspath(os.path.dirname(__file__))
@@ -67,9 +216,9 @@ here = os.path.abspath(os.path.dirname(__file__))
 #     return models
 
 def simulate_quasars(nqso=None, z_list=None, names_list=None, z_range=(1.0, 4.5), 
-                     wavelen_grid=None, wave_range=(3000, 11000), 
+                     wavelen_grid='/data2/home2/nguerrav/TNG50_spec/npy_files/TNG50_wavelength_grid_extended.npy', wave_range=(3000, 11000), 
                      dust_mode='exponential', #BAL=False, 
-                     output_dir='/data2/home2/nguerrav/QSO_simpaqs/QSO_simpaqs/QSOs_balanced_training_set_tng_grid'):
+                     output_dir='/data2/home2/nguerrav/QSO_simpaqs/QSO_simpaqs/QSOs_full_cat'):
     """
     Simulate a set of quasars without any absorber templates.
     
@@ -147,7 +296,7 @@ def simulate_quasars(nqso=None, z_list=None, names_list=None, z_range=(1.0, 4.5)
     # generate lines using the Baldwin Effect emission line model from BOSS DR9
     emLineVar = generateBEffEmissionLines(qsos.absMag)  # lines listed in /home/nguerrav/4MOST_like_data/simqso/simqso/data
                                                         # for each line: wavelength, logEW, logWidth
-    print('emLineVar:', emLineVar()[0][0], '\n')
+    # print('emLineVar:', emLineVar()[0][0], '\n')
 
     # the default iron template from Vestergaard & Wilkes 2001 was modified to fit BOSS spectra
     fescales = [(0, 1540, 0.5),
@@ -161,7 +310,7 @@ def simulate_quasars(nqso=None, z_list=None, names_list=None, z_range=(1.0, 4.5)
     # Now add the features to the QSO grid
     qsos.addVars([contVar, emLineVar, feVar])
 
-    print('qsos.data before: \n', qsos.data)
+    # print('qsos.data before: \n', qsos.data)
 
     # ready to generate spectra
     meta, spectra = buildSpectraBulk(wave, qsos, saveSpectra=True)
@@ -229,22 +378,12 @@ def simulate_quasars(nqso=None, z_list=None, names_list=None, z_range=(1.0, 4.5)
     if names_list is not None:
         qsos.data['NAME'] = names_list
     
-    print('qsos.data after: \n', qsos.data)
-    
-    if os.path.exists(f'{output_dir}/QSO_parameters.fits'):
-        tab = Table.read(f'{output_dir}/QSO_parameters.fits')
-        tab = vstack([tab, qsos.data])
+    if os.path.exists(f'{output_dir}/model_parameters.fits'):
+        qsos_prev = Table.read(f'{output_dir}/model_parameters.fits')
+        qsos = vstack([qsos_prev, qsos.data])
     else:
-        tab = qsos.data
-    tab.write(f'{output_dir}/model_parameters.fits', overwrite=True)
-
-    # if os.path.exists(f'{output_dir}/model_input.csv'):
-    #     old_subset = Table.read(f'{output_dir}/model_input.csv')
-    #     subset = vstack([old_subset, subset])
-    # subset.write(f'{output_dir}/model_input.csv', overwrite=True)
-    
-    # return tab
-
+        qsos = qsos.data
+    qsos.write(f'{output_dir}/model_parameters.fits', overwrite=True)
 
 def main():
     from argparse import ArgumentParser
@@ -253,7 +392,7 @@ def main():
                         help="Number of quasars to simulate [default=100]")
     parser.add_argument("--zlist", type=str, default=None,
                         help="File containing list of redshifts to use (one per line)")
-    parser.add_argument("--wavelen_grid", type=str, default=None,
+    parser.add_argument("--wavelen_grid", type=str, default='/data2/home2/nguerrav/TNG50_spec/npy_files/TNG50_wavelength_grid_extended.npy',
                         help="File with wavelength grid over which to simulate the QSOs")
     # parser.add_argument("--zmin", type=float, default=1.0,
     #                     help="Minimum redshift [default=1.0]")
@@ -267,7 +406,7 @@ def main():
                         help="Dust sampling mode: 'exponential' or 'uniform' [default=exponential]")
     # parser.add_argument('--bal', action='store_true',
     #                     help="Include broad absorption line features")
-    parser.add_argument("--dir", type=str, default='/data2/home2/nguerrav/QSO_simpaqs/QSOs_balanced_training_set_tng_grid',
+    parser.add_argument("--dir", type=str, default='/data2/home2/nguerrav/QSO_simpaqs/QSOs_full_cat',
                         help="Output directory")
 
     args = parser.parse_args()
@@ -279,8 +418,9 @@ def main():
     # print(f"BAL features: {'Yes' if args.bal else 'No'}")
     print(f"Output directory: {args.dir}")
 
-    cat = Table.read('/data2/home2/nguerrav/Catalogues/ByCycle_Final_Cat_with_all_S17_cols.fits').to_pandas()
-    # cat = Table.read('/data2/home2/nguerrav/Catalogues/ByCycle_balanced_subset_QSOs.fits').to_pandas()
+    # cat = Table.read('/data2/home2/nguerrav/Catalogues/ByCycle_Final_Cat_with_all_S17_cols.fits').to_pandas()
+    # cat = Table.read('/data2/home2/nguerrav/Catalogues/ByCycle_Final_Cat_fobs.fits').to_pandas()
+    cat = pandas_from_fits('/data2/home2/nguerrav/Catalogues/ByCycle_Final_Cat_fobs.fits')
 
     if args.number is not None:
         nqsos = args.number
@@ -321,7 +461,7 @@ def main():
 
         simulate_quasars(
             nqso=args.number,
-            z_range=(args.zmin, args.zmax),
+            # z_range=(args.zmin, args.zmax),
             z_list=z_arr, 
             names_list=names,
             wave_range=(args.wmin, args.wmax),
@@ -329,6 +469,12 @@ def main():
             # BAL=args.bal,
             output_dir=args.dir
         )
+
+    model_params = pd.read_csv(f'{args.dir}/model_parameters.csv')
+    qso_name_to_id = dict(zip(model_params['NAME'], model_params['ID'] + '.fits'))
+    cat['TEMPLATE'] = cat['NAME'].map(qso_name_to_id)
+
+    save_to_fits(cat, '/data2/home2/nguerrav/Catalogues/ByCycle_Final_Cat_fobs_qso_templates.fits')
 
 if __name__ == '__main__':
     main()
