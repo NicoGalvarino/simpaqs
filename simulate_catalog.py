@@ -116,8 +116,19 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
             template_fname = os.path.join(template_path, row['TEMPLATE'])
             SED = SEDTemplate(template_fname)
 
+            template_wave_min = SED.wavelength.min().value
+            template_wave_max = SED.wavelength.max().value
+            if template_wave_max < 678.0 or template_wave_min > 392.7:
+                warning_msg = f"Warning: Template '{row['TEMPLATE']}' may not fully cover 4MOST range (3700-9500 Å)"
+                print(warning_msg)
+                print(template_wave_min, template_wave_max)
+                warning_file = os.path.join(output_dir, 'template_warnings.log')
+                with open(warning_file, 'a') as f:
+                    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    f.write(f"[{timestamp}] Target: {target_name}, z={row['REDSHIFT_ESTIMATE']}, {warning_msg}\n")
+
             # Add the target spectrum from the template with a magnitude
-            mag_type_str = row['MAG_TYPE']
+            mag_type_str = 'DECam_z_AB'  # row['MAG_TYPE']
             survey, band, ab_vega = mag_type_str.split('_')
             mag_type = [filt_id for filt_id in Filter.list()
                         if survey.upper() in filt_id.upper() and '.'+band in filt_id][0]
@@ -126,7 +137,7 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
             #     print("Warning not AB magnitude in catalog... may be incorrect")
             mag = row['MAG'] * mag_unit
             # SED = SED.redshift(row['REDSHIFT_ESTIMATE'])
-            etc.set_target(SED(mag, mag_type), 'point')
+            # etc.set_target(SED(mag, mag_type), 'point')
             obs.set_target(SED(mag, mag_type), 'point')
 
             # Get and print the exposure time
@@ -156,10 +167,39 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
                                 'SUBSURVEY': row['SUBSURVEY'], 'SEEING': seeing, 'AIRMASS': airmass})
 
             res = obs.expose(texp)  # 'wavelength', 'binwidth', 'efficiency', 'gain', , 'target', 'sky', 'dark', 'ron', 'noise'
+
+            # if np.isnan(res['target']).any():
+            #     res['target'][np.isnan(res['target'])] = 0.
+            # if np.isnan(res['sky']).any():
+            #     res['sky'][np.isnan(res['sky'])] = 0.
+            res = obs.expose(texp)
+
+            flux_floor = 1e-25  # Very small positive value
             if np.isnan(res['target']).any():
-                res['target'][np.isnan(res['target'])] = 0.
+                nan_mask = np.isnan(res['target'])
+                res['target'][nan_mask] = flux_floor * u.electron
+                print(f"Warning: {np.sum(nan_mask)} NaN values in target flux replaced with floor value for {target_name}")
+
             if np.isnan(res['sky']).any():
-                res['sky'][np.isnan(res['sky'])] = 0.
+                nan_mask = np.isnan(res['sky'])
+                res['sky'][nan_mask] = flux_floor * u.electron
+                print(f"Warning: {np.sum(nan_mask)} NaN values in sky flux replaced with floor value for {target_name}")
+
+            # Also handle the noise component
+            if np.isnan(res['noise']).any():
+                nan_mask = np.isnan(res['noise'])
+                res['noise'][nan_mask] = np.sqrt(flux_floor) * u.electron  # Reasonable error for floor flux
+            
+            etc_wave_min = np.min(res['wavelength'])
+            etc_wave_max = np.max(res['wavelength'])
+            if etc_wave_max.value < 678 or etc_wave_min.value > 393:  # in nm
+                warning_msg = f"Warning: Template '{row['TEMPLATE']}' may not fully cover 4MOST range"
+                print(warning_msg)
+                print(etc_wave_min, etc_wave_max, '\n')
+                warning_file = os.path.join(output_dir, 'template_warnings.log')
+                with open(warning_file, 'a') as f:
+                    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    f.write(f"[{timestamp}] Target: {target_name}, z={row['REDSHIFT_ESTIMATE']}, {warning_msg}\n")
 
             # Add cosmic rays:
             N_pix = len(res)
@@ -192,19 +232,50 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
             # if spectrograph.lower() == 'lrs':
             # Create JOINED L1 SPECTRUM:
 
-            try:
-                hdu_list = dxu.joined()
-                hdu_list = update_header(hdu_list, row, prog_id)
-                hdu_list.writeto(output, overwrite=True)
-            # except ValueError as e:
-            #     print(f"Failed to save the joined spectrum: {row['TEMPLATE']}")
-            except (ValueError, IndexError) as e:
-                error_file = os.path.join(output_dir, 'failed_spectra.txt')
-                error_message = f"Failed to save spectrum for {target_name} (z={row['REDSHIFT_ESTIMATE']}, mag={row['MAG']}): {str(e)}"
-                with open(error_file, 'a') as f:
-                    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    f.write(f"[{timestamp}] {error_message}\n")
-                print(error_message)
+            # try:
+            hdu_list = dxu.joined()
+            
+            # Set flux floor and clean up data
+            flux_floor = 1e-25
+            flux_data = hdu_list[1].data['FLUX']
+            err_data = hdu_list[1].data['ERR_FLUX']
+            
+            # Count issues before fixing
+            n_negative = np.sum(flux_data < 0)
+            n_zero = np.sum(flux_data == 0)
+            n_nan_flux = np.sum(np.isnan(flux_data))
+            n_nan_err = np.sum(~np.isfinite(err_data))
+            
+            # if n_negative + n_zero + n_nan_flux + n_nan_err > 0:
+            #     print(f"Cleaning spectrum {model_id}: {n_negative} negative, {n_zero} zero, {n_nan_flux} NaN flux, {n_nan_err} bad errors")
+            
+            # Fix flux issues
+            bad_flux_mask = (flux_data <= 0) | np.isnan(flux_data)
+            flux_data[bad_flux_mask] = flux_floor
+            
+            # Fix error issues
+            bad_err_mask = ~np.isfinite(err_data) | (err_data <= 0)
+            err_data[bad_err_mask] = np.sqrt(flux_floor) * 10  # Conservative error
+            
+            # Update HDU data
+            hdu_list[1].data['FLUX'] = flux_data
+            hdu_list[1].data['ERR_FLUX'] = err_data
+            
+            hdu_list = update_header(hdu_list, row, prog_id)
+            hdu_list.writeto(output, overwrite=True)
+                
+            # except (IndexError, ValueError) as e:
+            #     error_file = os.path.join(output_dir, 'failed_spectra.txt')
+            #     error_message = f"Failed to save spectrum for {model_id}: {str(e)}"
+            #     with open(error_file, 'a') as f:
+            #         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            #         f.write(f"[{timestamp}] {error_message}\n")
+            #     print(error_message)
+            #     continue  # Skip to next target
+
+            hdu_list = dxu.joined()
+            hdu_list = update_header(hdu_list, row, prog_id)
+            hdu_list.writeto(output, overwrite=True)
 
         if (num / len(catalog)) * 100 % 5.0 == 0.0:  # every 5%
             # sys.stdout.write(f"\r{num}/{len(catalog)} \n")

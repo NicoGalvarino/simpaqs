@@ -4,10 +4,12 @@ from collections import Counter
 from astropy.table import QTable, Table
 import astropy.units as u
 from pathlib import Path
-
 import os
 
 import spectres
+
+from pandarallel import pandarallel
+pandarallel.initialize(progress_bar=True)
 
 col_format_all_S17 = {
     'NAME':pd.StringDtype(),
@@ -156,8 +158,8 @@ def pandas_from_fits(filepath):
 
     return t
 
-cat_path = Path('/data2/home2/nguerrav/Catalogues/')
-L1_spec_path = Path('/data2/home2/nguerrav/QSO_simpaqs/QSOs_full_cat_ETC_L1_output_with_fobs/')
+cat_path =           Path('/data2/home2/nguerrav/Catalogues/')
+L1_spec_path =       Path('/data2/home2/nguerrav/QSO_simpaqs/QSOs_full_cat_ETC_L1_output_with_fobs/')
 rebinned_spec_path = Path('/data2/home2/nguerrav/QSO_simpaqs/QSOs_full_cat_ETC_L1_output_with_fobs_etc_grid/')
 
 spec_units = {
@@ -180,7 +182,8 @@ def rebin_spec(spec_filename):
     else:
         L1_spec = Table.read(L1_spec_path / spec_filename)
 
-        rebin_spec = spectres.spectres(etc_grid, L1_spec['WAVE'][0], L1_spec['FLUX'][0], spec_errs=L1_spec['ERR_FLUX'][0])
+        rebin_spec = spectres.spectres(etc_grid, L1_spec['WAVE'][0], L1_spec['FLUX'][0], spec_errs=L1_spec['ERR_FLUX'][0], 
+                                       verbose=False)
         
         for i in range(rebin_spec[0].shape[0] - 1):
             if np.isnan(rebin_spec[0][i]):
@@ -204,9 +207,9 @@ def rebin_spec(spec_filename):
 
         # set arms
         wav_ranges = [
-            rebin_spec_tab['WAVE'] < 4500,
-            (rebin_spec_tab['WAVE'] >= 4500) & (rebin_spec_tab['WAVE'] < 6000),
-            rebin_spec_tab['WAVE'] >= 6000
+            rebin_spec_tab['WAVE'] <= 4355,
+            (rebin_spec_tab['WAVE'] >= 5159.8) & (rebin_spec_tab['WAVE'] <= 5730),
+            rebin_spec_tab['WAVE'] >= 6099.8
         ]
         arms = ['blue', 'green', 'red']
 
@@ -223,11 +226,11 @@ def get_SNR(rebinned_spec):
     SNR_green = rebinned_spec['SNR'][rebinned_spec['arm']=='green'].value
     SNR_red = rebinned_spec['SNR'][rebinned_spec['arm']=='red'].value
 
-    SNR_blue_mean = np.nanmean(SNR_blue)
-    SNR_green_mean = np.nanmean(SNR_green)
-    SNR_red_mean = np.nanmean(SNR_red)
+    SNR_blue_mean = np.mean(SNR_blue)
+    SNR_green_mean = np.mean(SNR_green)
+    SNR_red_mean = np.mean(SNR_red)
 
-    SNR_mean = np.nanmean(rebinned_spec['SNR'].value)
+    SNR_mean = np.mean(rebinned_spec['SNR'].value)
 
     return (SNR_mean, SNR_blue_mean, SNR_green_mean, SNR_red_mean)
 
@@ -248,11 +251,15 @@ def rebin_and_SNR(row):
         return SNR_mean, SNR_blue_mean, SNR_green_mean, SNR_red_mean
 
     else:
-        print('Spectrum ', spec_filename, 'not defined \n')
+        # print('Spectrum ', spec_filename, 'not defined \n')
         return np.nan, np.nan, np.nan, np.nan
 
-cat[['SNR_mean', 'SNR_blue_mean', 'SNR_green_mean', 'SNR_red_mean']] = cat.apply(
-    lambda x: pd.Series(rebin_and_SNR(x)), axis=1
-)
+def main():
+    cat[['SNR_mean', 'SNR_blue_mean', 'SNR_green_mean', 'SNR_red_mean']] = cat.parallel_apply(
+        lambda x: pd.Series(rebin_and_SNR(x)), axis=1
+    )
 
-save_to_fits(cat, cat_path / 'ByCycle_Final_Cat_fobs_qso_templates_with_SNR.fits')
+    save_to_fits(cat, cat_path / 'ByCycle_Final_Cat_fobs_qso_templates_with_SNR.fits')
+
+if __name__ == '__main__':
+    main()

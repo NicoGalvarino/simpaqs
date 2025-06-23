@@ -418,8 +418,6 @@ def main():
     # print(f"BAL features: {'Yes' if args.bal else 'No'}")
     print(f"Output directory: {args.dir}")
 
-    # cat = Table.read('/data2/home2/nguerrav/Catalogues/ByCycle_Final_Cat_with_all_S17_cols.fits').to_pandas()
-    # cat = Table.read('/data2/home2/nguerrav/Catalogues/ByCycle_Final_Cat_fobs.fits').to_pandas()
     cat = pandas_from_fits('/data2/home2/nguerrav/Catalogues/ByCycle_Final_Cat_fobs.fits')
 
     if args.number is not None:
@@ -471,6 +469,11 @@ def main():
         )
 
     model_params = pd.read_csv(f'{args.dir}/model_parameters.csv')
+
+    model_params = Table.read(f'{args.dir}/model_parameters.fits')
+    model_params = model_params['NAME', 'ID'].to_pandas()
+    model_params['ID'] = model_params['ID'].astype(pd.StringDtype())
+    model_params['NAME'] = model_params['NAME'].astype(pd.StringDtype())
     qso_name_to_id = dict(zip(model_params['NAME'], model_params['ID'] + '.fits'))
     cat['TEMPLATE'] = cat['NAME'].map(qso_name_to_id)
 
