@@ -200,21 +200,6 @@ __author__ = 'Jens-Kristian Krogager, modified'
 
 here = os.path.abspath(os.path.dirname(__file__))
 
-# def load_bal_templates():
-#     """
-#     Load all the rest-frame BAL templates into a dictionary.
-#     """
-#     models = {}
-#     temp_fnames = {'felobal': os.path.join(here, 'BALs/felobal_ot_pro1_spec.pkl'),
-#                    'hibal_1': os.path.join(here, 'BALs/hibal_1_pro1_spec.pkl'),
-#                    'hibal_2': os.path.join(here, 'BALs/hibal_2_pro1_spec.pkl'),
-#                    }
-#     for key, fname in temp_fnames.items():
-#         with open(fname, 'rb') as pkl_file:
-#             wl, trans = pickle.load(pkl_file)
-#             models[key] = (wl, trans)
-#     return models
-
 def simulate_quasars(nqso=None, z_list=None, names_list=None, z_range=(1.0, 4.5), 
                      wavelen_grid='/data2/home2/nguerrav/TNG50_spec/npy_files/TNG50_wavelength_grid_extended.npy', wave_range=(3000, 11000), 
                      dust_mode='exponential', #BAL=False, 

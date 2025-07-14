@@ -119,13 +119,17 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
             template_wave_min = SED.wavelength.min().value
             template_wave_max = SED.wavelength.max().value
             if template_wave_max < 678.0 or template_wave_min > 392.7:
-                warning_msg = f"Warning: Template '{row['TEMPLATE']}' may not fully cover 4MOST range (3700-9500 Å)"
+                warning_msg = f"May not fully cover 4MOST range (3700-9500 Å)"
                 print(warning_msg)
                 print(template_wave_min, template_wave_max)
-                warning_file = os.path.join(output_dir, 'template_warnings.log')
+                warning_file = os.path.join('./', 'simulate_catalog_warnings.log')
                 with open(warning_file, 'a') as f:
                     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    f.write(f"[{timestamp}] Target: {target_name}, z={row['REDSHIFT_ESTIMATE']}, {warning_msg}\n")
+                    f.write(f"[{timestamp}] Target: {target_name}, z={row['REDSHIFT_ESTIMATE']}, MAG={row['MAG']}, fobs={row['fobs']}, {warning_msg}\n")
+                warning_target_list_file = os.path.join('./', 'simulate_catalog_warnings_target_list.log')
+                with open(warning_target_list_file, 'a') as f:
+                    f.write(f"{target_name}\n")
+
 
             # Add the target spectrum from the template with a magnitude
             mag_type_str = 'DECam_z_AB'  # row['MAG_TYPE']
@@ -178,28 +182,60 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
             if np.isnan(res['target']).any():
                 nan_mask = np.isnan(res['target'])
                 res['target'][nan_mask] = flux_floor * u.electron
-                print(f"Warning: {np.sum(nan_mask)} NaN values in target flux replaced with floor value for {target_name}")
+                warning_msg = f"Warning: {np.sum(nan_mask)} NaN values in target flux replaced with floor value"
+                print(warning_msg)
+                warning_file = os.path.join('./', 'simulate_catalog_warnings.log')
+                with open(warning_file, 'a') as f:
+                    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    f.write(f"[{timestamp}] Target: {target_name}, z={row['REDSHIFT_ESTIMATE']}, MAG={row['MAG']}, fobs={row['fobs']}, {warning_msg}\n")
+
+                warning_target_list_file = os.path.join('./', 'simulate_catalog_warnings_target_list.log')
+                with open(warning_target_list_file, 'a') as f:
+                    f.write(f"{target_name}\n")
 
             if np.isnan(res['sky']).any():
                 nan_mask = np.isnan(res['sky'])
                 res['sky'][nan_mask] = flux_floor * u.electron
-                print(f"Warning: {np.sum(nan_mask)} NaN values in sky flux replaced with floor value for {target_name}")
+                warning_msg = f"Warning: {np.sum(nan_mask)} NaN values in sky flux replaced with floor value"
+                print(warning_msg)
+                warning_file = os.path.join('./', 'simulate_catalog_warnings.log')
+                with open(warning_file, 'a') as f:
+                    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    f.write(f"[{timestamp}] Target: {target_name}, z={row['REDSHIFT_ESTIMATE']}, MAG={row['MAG']}, fobs={row['fobs']}, {warning_msg}\n")
+
+                warning_target_list_file = os.path.join('./', 'simulate_catalog_warnings_target_list.log')
+                with open(warning_target_list_file, 'a') as f:
+                    f.write(f"{target_name}\n")
 
             # Also handle the noise component
             if np.isnan(res['noise']).any():
                 nan_mask = np.isnan(res['noise'])
                 res['noise'][nan_mask] = np.sqrt(flux_floor) * u.electron  # Reasonable error for floor flux
+                warning_msg = f"Warning: {np.sum(nan_mask)} NaN values in noise flux replaced with floor value"
+                print(warning_msg)
+                warning_file = os.path.join('./', 'simulate_catalog_warnings.log')
+                with open(warning_file, 'a') as f:
+                    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    f.write(f"[{timestamp}] Target: {target_name}, z={row['REDSHIFT_ESTIMATE']}, MAG={row['MAG']}, fobs={row['fobs']}, {warning_msg}\n")
             
+                warning_target_list_file = os.path.join('./', 'simulate_catalog_warnings_target_list.log')
+                with open(warning_target_list_file, 'a') as f:
+                    f.write(f"{target_name}\n")
+
             etc_wave_min = np.min(res['wavelength'])
             etc_wave_max = np.max(res['wavelength'])
             if etc_wave_max.value < 678 or etc_wave_min.value > 393:  # in nm
-                warning_msg = f"Warning: Template '{row['TEMPLATE']}' may not fully cover 4MOST range"
+                warning_msg = f"May not fully cover 4MOST range"
                 print(warning_msg)
                 print(etc_wave_min, etc_wave_max, '\n')
-                warning_file = os.path.join(output_dir, 'template_warnings.log')
+                warning_file = os.path.join('./', 'simulate_catalog_warnings.log')
                 with open(warning_file, 'a') as f:
                     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    f.write(f"[{timestamp}] Target: {target_name}, z={row['REDSHIFT_ESTIMATE']}, {warning_msg}\n")
+                    f.write(f"[{timestamp}] Target: {target_name}, z={row['REDSHIFT_ESTIMATE']}, MAG={row['MAG']}, fobs={row['fobs']}, {warning_msg}\n")
+
+                warning_target_list_file = os.path.join('./', 'simulate_catalog_warnings_target_list.log')
+                with open(warning_target_list_file, 'a') as f:
+                    f.write(f"{target_name}\n")
 
             # Add cosmic rays:
             N_pix = len(res)
@@ -273,9 +309,9 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
             #     print(error_message)
             #     continue  # Skip to next target
 
-            hdu_list = dxu.joined()
-            hdu_list = update_header(hdu_list, row, prog_id)
-            hdu_list.writeto(output, overwrite=True)
+            # hdu_list = dxu.joined()
+            # hdu_list = update_header(hdu_list, row, prog_id)
+            # hdu_list.writeto(output, overwrite=True)
 
         if (num / len(catalog)) * 100 % 5.0 == 0.0:  # every 5%
             # sys.stdout.write(f"\r{num}/{len(catalog)} \n")
@@ -333,7 +369,8 @@ def main():
     args = parser.parse_args()
 
     t1 = datetime.datetime.now()
-    catalog = Table.read('/data2/home2/nguerrav/Catalogues/ByCycle_Final_Cat_fobs_qso_templates.fits')
+    catalog = Table.read('/data2/home2/nguerrav/Catalogues/ByCycle_Final_Cat_fobs_qso_templates_with_SNR.fits')
+    catalog = catalog[catalog['SNR_mean'] < 0.0]
 
     if args.number is not None:
         N_targets = args.number

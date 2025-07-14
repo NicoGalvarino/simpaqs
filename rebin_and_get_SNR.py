@@ -170,8 +170,8 @@ spec_units = {
 
 etc_grid = np.load('/data2/home2/nguerrav/QSO_simpaqs/npy_files/etc_wavelength_grid.npy')
 
-cat = pandas_from_fits(cat_path / 'ByCycle_Final_Cat_fobs_qso_templates.fits')
-cat[:100]
+cat = pandas_from_fits(cat_path / 'ByCycle_Final_Cat_fobs_qso_templates_with_SNR.fits')
+# cat = cat.loc[cat['SNR_mean'] < 0.0]
 
 def rebin_spec(spec_filename):
 
