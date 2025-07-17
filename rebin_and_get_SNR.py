@@ -11,6 +11,17 @@ import spectres
 from pandarallel import pandarallel
 pandarallel.initialize(progress_bar=True)
 
+spec_units = {
+    'WAVE': u.AA, 
+    'FLUX': u.erg / (u.AA * u.s * u.cm**2), 
+    'ERR_FLUX': u.erg / (u.AA * u.s * u.cm**2)
+}
+
+etc_grid = np.load('/data2/home2/nguerrav/QSO_simpaqs/npy_files/etc_wavelength_grid.npy')
+cat_path =           Path('/data2/home2/nguerrav/Catalogues/')
+L1_spec_path =       Path('/data2/home2/nguerrav/QSO_simpaqs/QSOs_full_cat_with_absorbers_in_blue_arm_ETC_L1_output_with_fobs/')
+rebinned_spec_path = Path('/data2/home2/nguerrav/QSO_simpaqs/QSOs_full_cat_with_absorbers_in_blue_arm_ETC_L1_output_with_fobs_etc_grid/')
+
 col_format_all_S17 = {
     'NAME':pd.StringDtype(),
     'RA':np.float64, 'DEC':np.float64,
@@ -158,22 +169,7 @@ def pandas_from_fits(filepath):
 
     return t
 
-cat_path =           Path('/data2/home2/nguerrav/Catalogues/')
-L1_spec_path =       Path('/data2/home2/nguerrav/QSO_simpaqs/QSOs_full_cat_ETC_L1_output_with_fobs/')
-rebinned_spec_path = Path('/data2/home2/nguerrav/QSO_simpaqs/QSOs_full_cat_ETC_L1_output_with_fobs_etc_grid/')
-
-spec_units = {
-    'WAVE': u.AA, 
-    'FLUX': u.erg / (u.AA * u.s * u.cm**2), 
-    'ERR_FLUX': u.erg / (u.AA * u.s * u.cm**2)
-}
-
-etc_grid = np.load('/data2/home2/nguerrav/QSO_simpaqs/npy_files/etc_wavelength_grid.npy')
-
-cat = pandas_from_fits(cat_path / 'ByCycle_Final_Cat_fobs_qso_templates_with_SNR.fits')
-# cat = cat.loc[cat['SNR_mean'] < 0.0]
-
-def rebin_spec(spec_filename):
+def rebin_spec(spec_filename, ):
 
     if os.path.exists(rebinned_spec_path / spec_filename):
 
@@ -255,11 +251,15 @@ def rebin_and_SNR(row):
         return np.nan, np.nan, np.nan, np.nan
 
 def main():
+
+    cat = pandas_from_fits(cat_path / 'test_set_cat_not_in_golden_sample_with_MgII.fits')
+    # cat = cat.loc[cat['SNR_mean'] < 0.0]
+
     cat[['SNR_mean', 'SNR_blue_mean', 'SNR_green_mean', 'SNR_red_mean']] = cat.parallel_apply(
         lambda x: pd.Series(rebin_and_SNR(x)), axis=1
     )
 
-    save_to_fits(cat, cat_path / 'ByCycle_Final_Cat_fobs_qso_templates_with_SNR.fits')
+    save_to_fits(cat, cat_path / 'test_set_cat_not_in_golden_sample_with_MgII_with_SNR.fits')
 
 if __name__ == '__main__':
     main()

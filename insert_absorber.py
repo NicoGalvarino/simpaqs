@@ -4,6 +4,8 @@ from astropy.time import Time
 import astropy.units as u
 from argparse import ArgumentParser
 
+from collections import Counter
+
 import os
 import sys
 import datetime
@@ -21,6 +23,153 @@ warnings.filterwarnings('ignore', message='invalid value encountered in divide',
 # warnings.filterwarnings('default')
 
 from qmostetc import SEDTemplate, QMostObservatory, Ruleset, Rule, Filter, L1DXU
+
+col_format_all_S17 = {
+    'NAME':pd.StringDtype(),
+    'RA':np.float64, 'DEC':np.float64,
+    'PMRA':np.float32, 'PMDEC':np.float32,
+    'EPOCH':np.float32, 'RESOLUTION':np.int16,
+    'SUBSURVEY':pd.StringDtype(),
+    'TEMPLATE':pd.StringDtype(), 
+    'RULESET':pd.StringDtype(),
+    'EXTENT_FLAG':np.int32,
+    'EXTENT_PARAMETER':np.float32,'EXTENT_INDEX':np.float32,
+    'MAG_TYPE':pd.StringDtype(),
+    'MAG':np.float32, 'MAG_ERR':np.float32,
+    'DATE_EARLIEST':np.float64, 'DATE_LATEST':np.float64,
+    'CADENCE':np.int64,
+    'REDDENING':np.float32,
+    'REDSHIFT_ESTIMATE':np.float32,
+    'REDSHIFT_ERROR':np.float32,
+    'CAL_MAG_ID_BLUE':pd.StringDtype(),
+    'CAL_MAG_ID_GREEN':pd.StringDtype(),
+    'CAL_MAG_ID_RED':pd.StringDtype(),
+    'CAL_MAG_ERR_BLUE':np.float32,
+    'CAL_MAG_ERR_GREEN':np.float32,
+    'CAL_MAG_ERR_RED':np.float32,
+    'CAL_MAG_BLUE':np.float32,
+    'CAL_MAG_GREEN':np.float32,
+    'CAL_MAG_RED':np.float32,
+    'CLASSIFICATION':pd.StringDtype(),
+    'CLASS_SPEC':pd.StringDtype(),
+    'COMPLETENESS':np.float32,
+    'PARALLAX':np.float32,
+    'SWEEP_NAME':pd.StringDtype(), 
+    'BRICKNAME':pd.StringDtype(), 
+    'TYPE':pd.StringDtype(), 
+    'BAND_LEGACY':pd.StringDtype(), 
+    'REFERENCE_BAND':pd.StringDtype(), 
+    'COMBINATION_USE':pd.StringDtype(), 
+    'REDSHIFT_REF':pd.StringDtype(), 
+    'EBV':np.float64, 
+    'PLXSIG': np.float64, 
+    'PMSIG': np.float64, 
+    'SN_MAX': np.float64, 
+    'MAG_G': np.float32, 
+    'MAGERR_G': np.float32, 
+    'MAG_R': np.float32, 
+    'MAGERR_R': np.float32, 
+    'MAG_I': np.float32, 
+    'MAGERR_I': np.float32, 
+    'MAG_Z': np.float32, 
+    'MAGERR_Z': np.float32, 
+    'MAG_Y': np.float32, 
+    'MAGERR_Y': np.float32, 
+    'MAG_J': np.float32, 
+    'MAGERR_J': np.float32, 
+    'MAG_H': np.float32, 
+    'MAGERR_H': np.float32, 
+    'MAG_K': np.float32, 
+    'MAGERR_K': np.float32, 
+    'MAG_W1': np.float32, 
+    'MAGERR_W1': np.float32, 
+    'MAG_W2': np.float32, 
+    'MAGERR_W2': np.float32, 
+    'SPECTYPE_DESI': pd.StringDtype()
+    }
+
+col_units = {
+    "RA": "deg", "DEC": "deg", "PMRA": "mas/yr", "PMDEC": "mas/yr",
+    "EPOCH": "yr", "MAG": "mag", "MAG_ERR": "mag", "EXTENT_PARAMETER": "arcsec",
+    "DATE_EARLIEST": "d", "DATE_LATEST": "d", "REDDENING": "mag",
+    "CAL_MAG_BLUE": "mag", "CAL_MAG_GREEN": "mag", "CAL_MAG_RED": "mag",
+    "CAL_MAG_ERR_BLUE": "mag", "CAL_MAG_ERR_GREEN": "mag", "CAL_MAG_ERR_RED": "mag",
+    "PARALLAX": "mas",
+}
+
+def cols_format_dict(format_dict, dataframe):
+    matching_columns = {}
+    
+    for col in dataframe.columns:
+        if col in format_dict:
+            matching_columns[col] = format_dict[col]
+    
+    return matching_columns
+
+def format_pd_for_fits(df):
+    
+    df_copy = df.copy()
+    
+    for col_name in df_copy.columns:  # object to string
+
+        col_values = df_copy[col_name].values
+
+        if col_values.dtype == 'object':
+            df_copy[col_name] = df_copy[col_name].astype(pd.StringDtype())
+
+    format_cols = cols_format_dict(col_format_all_S17, df_copy)
+    df_copy = df_copy.astype(format_cols)
+
+    for col_name in df_copy.columns:  # fill empty cells
+
+        col_series = df_copy[col_name].values
+
+        if pd.api.types.is_string_dtype(df_copy[col_name]) or isinstance(col_series.dtype, pd.StringDtype):
+            df_copy[col_name] = df_copy[col_name].fillna('-')
+        else:
+            if col_name in ['MAG_Z', 'MAG', 'MAGERR_Z', 'MAG_ERR', 'MAG_G', 'CAL_MAG_BLUE', 
+                            'MAGERR_G', 'CAL_MAG_ERR_BLUE', 'MAG_R', 'CAL_MAG_GREEN', 'MAGERR_R', 'CAL_MAG_ERR_GREEN', 
+                            'MAG_I', 'CAL_MAG_RED', 'MAGERR_I', 'CAL_MAG_ERR_RED']:
+                df_copy[col_name] = df_copy[col_name].fillna(1.0)
+            else:
+                df_copy[col_name] = df_copy[col_name].fillna(-999)
+    
+    df_copy.reset_index(drop=True, inplace=True)
+    return df_copy
+
+def save_to_fits(df, filepath, meta=None):
+
+    df_for_fits = format_pd_for_fits(df)
+    
+    t = Table()
+
+    format_cols = cols_format_dict(col_format_all_S17, df_for_fits)
+    for col_name in df_for_fits.columns:
+        if col_name in format_cols.keys():
+            col_data = df_for_fits[col_name].astype(col_format_all_S17[col_name])
+            col_data = col_data.values
+        else:
+            col_data = df_for_fits[col_name].values
+
+        if hasattr(col_data, 'values'):
+            t[col_name] = col_data.values
+        else:
+            t[col_name] = [x for x in col_data]
+            
+    if meta:
+        t.meta.update(meta)
+
+    t.write(filepath, format='fits', overwrite=True)
+
+def pandas_from_fits(filepath):
+    t = Table.read(filepath, format='fits')
+    
+    t = t.to_pandas()
+
+    format_cols = cols_format_dict(col_format_all_S17, t)
+    t = t.astype(format_cols)
+
+    return t
 
 def load_MgII(folder):
     ''' Function to load hdf5 files with MgII absorbers from TNG50
@@ -124,6 +273,17 @@ def shift_metal_abs(wave_mgii, flux_mgii, z_shifted, metal_cent, verbose=False):
     if(verbose == True):
         print('Estimated original z:', z_mgii)
         print('Estimated shifted z:', z_shifted)
+    
+        # if z_mgii <= z_qso:
+
+        #     good_z = True
+        #     if(verbose==True):
+        #         print('good z found')
+        #         print('MgII z: ', z_mgii)
+        #         print('QSO z: ', z_qso)
+        # else:
+        #     if(verbose==True):
+        #         print('no good z - redo')
   
     return flux_mgii_shifted, z_shifted, mgii_2796_center_pos, mgii_2796_center_wl
 
@@ -164,40 +324,61 @@ def insert_random_MgII(qso_template, MgII_dir, z_shifted_range, # z_shift_max_ar
     qso_flux = qso_template['FLUX_DENSITY'][:]
     qso_spectrum = np.asarray(qso_flux)
     
-    good_z = False
-    while(good_z == False):
-        # Randomly select file of MgII absorbers, shift in z and MgII line in that file
-        if(z_qso < 0.6):
-            z_file_num = 1
-        if(z_qso < 0.8):
-            z_file_num = np.random.randint(1, 3)
-        else:
-            z_file_num = np.random.randint(0, len(MgII_dir))
-            
-        # z_shift_max = z_shift_max_arr[z_file_num]
-        z_shifted_min, z_shifted_max = z_shifted_range
-        # z_shifted = np.random.uniform(-z_shift_max, z_shift_max)
+    # good_z = False
+    # while (good_z == False):
+    # Randomly select file of MgII absorbers, shift in z and MgII line in that file
+    # print('\n len(MgII_dir) =',  len(MgII_dir))
+    # print(MgII_dir[0])
+    # print(MgII_dir[1], '\n')
+    if len(MgII_dir) == 1:
+        z_file_num = 0
+    # if(z_qso < 0.8):
+    #     z_file_num = np.random.randint(1, 3)
+    else:
+        z_file_num = np.random.randint(0, len(MgII_dir))
+    # z_file_num = np.random.randint(0, len(MgII_dir))
+
+    # z_shift_max = z_shift_max_arr[z_file_num]
+    z_shifted_min, z_shifted_max = z_shifted_range
+    # z_shifted = np.random.uniform(-z_shift_max, z_shift_max)
+    z_shifted = np.random.uniform(z_shifted_min, z_shifted_max)
+    while z_qso <= z_shifted:
         z_shifted = np.random.uniform(z_shifted_min, z_shifted_max)
-        print(z_shifted)
-        MgII_num = np.random.randint(0, len(MgII_dir[z_file_num]['flux']))
 
-        MgII_flux = MgII_dir[z_file_num]['flux'][MgII_num]
+    # print(z_shifted)
+    # print('z_file_num:', z_file_num)
+    # print(MgII_dir[z_file_num].keys())
+    mask = MgII_dir[z_file_num]['EW_MgII_2796'][:] >= EW_min
+    idx_with_absorber = np.where(mask)[0]
+    # print('np.where(mask) =', np.where(mask))
+    # print('idx_with_absorber', idx_with_absorber)
+    # print('len(idx_with_absorber)', len(idx_with_absorber))
+    # print(Counter(mask))
 
-        # Shift MgII line based on the random value
-        MgII_flux_shifted, z_MgII, mgii_2796_center_pos, mgii_2796_center_wl = shift_metal_abs(MgII_dir[z_file_num]['wave'][:], MgII_flux, z_shifted, 2796., verbose=verbose)
+    # if len(idx_with_absorber) == 0:
+    #     continue
         
-        # if(z_MgII <= z_qso and MgII_dir[z_file_num]['EW_total'][MgII_num] >= EW_min):
-        if z_MgII <= z_qso:
+    MgII_num = np.random.choice(idx_with_absorber)
+    # MgII_num = np.random.randint(0, len(MgII_dir[z_file_num]['flux']))
 
-            good_z = True
-            if(verbose==True):
-                print('good z found')
-                print('MgII z: ', z_MgII)
-                print('QSO z: ', z_qso)
-                print(z_file_num)
-        else:
-            if(verbose==True):
-                print('no good z - redo')
+    MgII_flux = MgII_dir[z_file_num]['flux'][MgII_num]
+    wave = MgII_dir[z_file_num]['wave'][:]
+
+    # Shift MgII line based on the random value
+    MgII_flux_shifted, z_MgII, mgii_2796_center_pos, mgii_2796_center_wl = shift_metal_abs(wave, MgII_flux, z_shifted, 2796., verbose=verbose)
+    
+    # if(z_MgII <= z_qso and MgII_dir[z_file_num]['EW_total'][MgII_num] >= EW_min):
+    # if z_MgII <= z_qso:
+
+    #     good_z = True
+    #     if(verbose==True):
+    #         print('good z found')
+    #         print('MgII z: ', z_MgII)
+    #         print('QSO z: ', z_qso)
+    #         print(z_file_num)
+    # else:
+    #     if(verbose==True):
+    #         print('no good z - redo')
     
     # Insert shifted MgII line
     spectrum = insert_metal_abs(qso_spectrum, MgII_flux_shifted)  # 1D flux array
@@ -242,7 +423,9 @@ def add_MgII_absorber(catalog, MgII_abs, z_shifted_range, #z_shift_max_arr,
         template_MgII = f'{template_name_no_ext}_with_MgII.fits'
         output = os.path.join(output_dir, f"{template_name_no_ext}_with_MgII.fits")
 
-        if os.path.exists(output):
+        # if os.path.exists(output):
+        #     pass
+        if False:
             pass
 
         else:
@@ -265,10 +448,12 @@ def add_MgII_absorber(catalog, MgII_abs, z_shifted_range, #z_shift_max_arr,
             catalog['has_MgII'][num-1] = True
 
             catalog['EW_MgII_2796'][num-1] = MgII_prop[0]
+            # print('EW_MgII_2796 =', MgII_prop[0])
             catalog['EW_MgII_2803'][num-1] = MgII_prop[1]
             catalog['z_MgII'][num-1] = MgII_prop[2]
 
             catalog['MgII_2796_center_pos'] = MgII_prop[3]
+            # print('MgII_2796_center_wl =', MgII_prop[4])
             catalog['MgII_2796_center_wl'] = MgII_prop[4]
             
             catalog['TEMPLATE_with_MgII'][num-1] = template_MgII
@@ -283,6 +468,7 @@ def add_MgII_absorber(catalog, MgII_abs, z_shifted_range, #z_shift_max_arr,
         if (num / len(catalog)) * 100 % 5.0 == 0.0:  # every 5%
             sys.stdout.write(f"\r{100*num/len(catalog)}% done \n")
         sys.stdout.flush()
+    return catalog
 
 
 def main():
@@ -294,8 +480,12 @@ def main():
     args = parser.parse_args()
 
     t1 = datetime.datetime.now()
-    catalog = Table.read('/data2/home2/nguerrav/Catalogues/ByCycle_Final_Cat_fobs_qso_templates_with_SNR_golden_label.fits')
-    catalog = catalog[:10]
+    # catalog = Table.read('/data2/home2/nguerrav/Catalogues/ByCycle_Final_Cat_fobs_qso_templates_with_SNR_golden_label.fits')
+    catalog = Table.read('/data2/home2/nguerrav/Catalogues/test_set_cat_not_in_golden_sample.fits')  # not in training set
+# print(Counter(catalog['golden']))
+    # catalog = catalog[:10]
+    # print(Counter(catalog['golden']))
+    # catalog = catalog[catalog['golden']==False][:]
 
     catalog['has_MgII'] = False
     catalog['z_MgII'] = -999
@@ -315,15 +505,15 @@ def main():
 
     if arm == 'blue':
         z_min = (3926 - 2796) / 2796
-        z_max = (4355 - 2796) / 2803
+        z_max = (4355 - 2803) / 2803
         z_shifted_range = [z_min, z_max]
     elif arm == 'green':
         z_min = (5160 - 2796) / 2796
-        z_max = (5730 - 2796) / 2803
+        z_max = (5730 - 2803) / 2803
         z_shifted_range = [z_min, z_max]
     if arm == 'red':
         z_min = (6100 - 2796) / 2796
-        z_max = (6790 - 2796) / 2803
+        z_max = (6790 - 2803) / 2803
         z_shifted_range = [z_min, z_max]
 
     if args.number is not None:
@@ -337,6 +527,8 @@ def main():
         # Process in chunks to manage memory
         chunk_size = 10000
         num_chunks = (N_targets + chunk_size - 1) // chunk_size
+        
+        chunks_cat_mgii = []
 
         for chunk_idx in range(num_chunks):
             start_idx = chunk_idx * chunk_size
@@ -346,7 +538,7 @@ def main():
             
             chunk_cat = catalog[start_idx:end_idx]
 
-            add_MgII_absorber(chunk_cat,
+            chunk_cat_mgii = add_MgII_absorber(chunk_cat,
                               MgII_abs, 
                             #   z_shift_max_arr, 
                             z_shifted_range, 
@@ -354,16 +546,25 @@ def main():
                             template_path=args.temp_dir,
                             N_targets=N_targets,
                             )
+            chunks_cat_mgii.append(chunk_cat_mgii.to_pandas())
+
+        catalog_mgii = pd.concat(chunks_cat_mgii, ignore_index=True)
+        save_to_fits(catalog_mgii, 
+                 '/data2/home2/nguerrav/Catalogues/test_set_cat_not_in_golden_sample_with_MgII.fits')
 
     else:
 
-        add_MgII_absorber(catalog,
+        catalog_mgii = add_MgII_absorber(catalog,
                           MgII_abs, 
                         #   z_shift_max_arr, 
                         z_shifted_range, 
                 output_dir=args.output,
                 template_path=args.temp_dir,
                 N_targets=N_targets)
+        
+        # save_to_fits(catalog_mgii, 
+        #              '/data2/home2/nguerrav/Catalogues/ByCycle_Cat_test_set_with_MgII.fits')
+        catalog_mgii.write('/data2/home2/nguerrav/Catalogues/test_set_cat_not_in_golden_sample_with_MgII.fits', format='fits', overwrite=True)
 
     t2 = datetime.datetime.now()
     dt = t2 - t1
