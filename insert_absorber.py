@@ -89,7 +89,7 @@ def estimate_metal_redshift(wave_mgii, flux_mgii, metal_cent):
 
 
 
-def shift_metal_abs(wave_mgii, flux_mgii, z_shift, metal_cent, verbose=False):
+def shift_metal_abs(wave_mgii, flux_mgii, z_shifted, metal_cent, verbose=False):
     ''' Function to shift MgII spectrum to a specific redshift.
     Input:
         wave_mgii: wavelength grid of MgII lines
@@ -102,7 +102,7 @@ def shift_metal_abs(wave_mgii, flux_mgii, z_shift, metal_cent, verbose=False):
     # Estimate redshift and position in grid of MgII absoprtion line using a Voigt 
     # profile fit of the MgII 2796 line
     z_mgii, wl_z_mgii_pos, mgii_2796_center_wl = estimate_metal_redshift(wave_mgii, flux_mgii, metal_cent)
-    z_shifted = z_mgii + z_shift
+    # z_shifted = z_mgii + z_shift
     
     # Calculate central wavelength of shifted and original MgII 2796 line
     wl_z_shifted = metal_cent * (1 + z_shifted)
@@ -144,7 +144,8 @@ def insert_metal_abs(spectrum, MgIIflux):
     return spec_with_MgII
 
 
-def insert_random_MgII(qso_template, MgII_dir, z_shift_max_arr, z_qso, saveto, EW_min=0.002, verbose=False):
+def insert_random_MgII(qso_template, MgII_dir, z_shifted_range, # z_shift_max_arr, 
+                       z_qso, saveto, EW_min=0.002, verbose=False):
     
     ''' Function to insert a random MgII absorption line into the spectrum
     Input:
@@ -152,6 +153,7 @@ def insert_random_MgII(qso_template, MgII_dir, z_shift_max_arr, z_qso, saveto, E
         MgII_dir: MgII array with MgII lines at different redshifts (use load_MgII to get the right format)
         z_shift_max: maximum range of shifting the MgII line. This is done to get a continuous 
                      function of MgII absorber in z-space
+        z_shifted_range: range of final z of the absorber
     Returns:
         spectrum: QSO spectrum with added MgII absorption line
         MgII_flux_shifted: MgII absorption spectrum shifted to a specific redshift
@@ -172,15 +174,17 @@ def insert_random_MgII(qso_template, MgII_dir, z_shift_max_arr, z_qso, saveto, E
         else:
             z_file_num = np.random.randint(0, len(MgII_dir))
             
-        z_shift_max = z_shift_max_arr[z_file_num]
-        z_shift = np.random.uniform(-z_shift_max, z_shift_max)
-        print(z_shift)
+        # z_shift_max = z_shift_max_arr[z_file_num]
+        z_shifted_min, z_shifted_max = z_shifted_range
+        # z_shifted = np.random.uniform(-z_shift_max, z_shift_max)
+        z_shifted = np.random.uniform(z_shifted_min, z_shifted_max)
+        print(z_shifted)
         MgII_num = np.random.randint(0, len(MgII_dir[z_file_num]['flux']))
 
         MgII_flux = MgII_dir[z_file_num]['flux'][MgII_num]
 
         # Shift MgII line based on the random value
-        MgII_flux_shifted, z_MgII, mgii_2796_center_pos, mgii_2796_center_wl = shift_metal_abs(MgII_dir[z_file_num]['wave'][:], MgII_flux, z_shift, 2796., verbose=verbose)
+        MgII_flux_shifted, z_MgII, mgii_2796_center_pos, mgii_2796_center_wl = shift_metal_abs(MgII_dir[z_file_num]['wave'][:], MgII_flux, z_shifted, 2796., verbose=verbose)
         
         # if(z_MgII <= z_qso and MgII_dir[z_file_num]['EW_total'][MgII_num] >= EW_min):
         if z_MgII <= z_qso:
@@ -214,7 +218,8 @@ def insert_random_MgII(qso_template, MgII_dir, z_shift_max_arr, z_qso, saveto, E
     return spectrum, MgII_flux_shifted, MgII_prop
 
 
-def add_MgII_absorber(catalog, MgII_abs, z_shift_max_arr, *, # ruleset_fname, rules_fname,
+def add_MgII_absorber(catalog, MgII_abs, z_shifted_range, #z_shift_max_arr, 
+                    *, # ruleset_fname, rules_fname,
                     output_dir='with_MgIIs', template_path='',
                     # airmass=1.2,  # 1.0 - 1.5
                     # seeing=0.8,  # 0.4 - 1.5
@@ -251,7 +256,8 @@ def add_MgII_absorber(catalog, MgII_abs, z_shift_max_arr, *, # ruleset_fname, ru
 
             spectrum_t, MgII_flux_shifted_t, MgII_prop = insert_random_MgII(template_fname, #np.array(qso_flux), 
                                                                             MgII_abs, 
-                                                                            z_shift_max_arr, 
+                                                                            # z_shift_max_arr, 
+                                                                            z_shifted_range, 
                                                                             row['REDSHIFT_ESTIMATE'], 
                                                                             saveto=output, 
                                                                             verbose=False)
@@ -283,7 +289,7 @@ def main():
     parser = ArgumentParser(description='Insert MgII absorbers in QSO templates')
     parser.add_argument('-n', '--number', type=int, default=None)
     parser.add_argument('--temp-dir', type=str, default='/data2/home2/nguerrav/QSO_simpaqs/QSOs_full_cat/', help='Directory of spectral templates')
-    parser.add_argument("-o", "--output", type=str, default='/data2/home2/nguerrav/QSO_simpaqs/QSOs_full_cat_with_absorbers/', help="output directory")
+    parser.add_argument("-o", "--output", type=str, default='/data2/home2/nguerrav/QSO_simpaqs/QSOs_full_cat_with_absorbers_in_blue_arm/', help="output directory")
 
     args = parser.parse_args()
 
@@ -301,8 +307,24 @@ def main():
     catalog['MgII_2796_center_wl'] = -999
 
     MgII_abs = load_MgII('/data2/home2/nguerrav/TNG50_spec/')
+    arm = 'blue'
+    # arm = 'green'
+    # arm = 'red'
     # absorbers_z_05 = h5py.File('/data2/home2/nguerrav/TNG50_spec/spectra_TNG50-1_z0.5_n2000d2-rndfullbox_4MOST-HRS_MgII_combined.hdf5', 'r')
-    z_shift_max_arr = [0.395, 0.558]
+    # z_shift_max_arr = [0.395, 0.558]
+
+    if arm == 'blue':
+        z_min = (3926 - 2796) / 2796
+        z_max = (4355 - 2796) / 2803
+        z_shifted_range = [z_min, z_max]
+    elif arm == 'green':
+        z_min = (5160 - 2796) / 2796
+        z_max = (5730 - 2796) / 2803
+        z_shifted_range = [z_min, z_max]
+    if arm == 'red':
+        z_min = (6100 - 2796) / 2796
+        z_max = (6790 - 2796) / 2803
+        z_shifted_range = [z_min, z_max]
 
     if args.number is not None:
         N_targets = args.number
@@ -326,7 +348,8 @@ def main():
 
             add_MgII_absorber(chunk_cat,
                               MgII_abs, 
-                              z_shift_max_arr, 
+                            #   z_shift_max_arr, 
+                            z_shifted_range, 
                             output_dir=args.output,
                             template_path=args.temp_dir,
                             N_targets=N_targets,
@@ -336,7 +359,8 @@ def main():
 
         add_MgII_absorber(catalog,
                           MgII_abs, 
-                          z_shift_max_arr, 
+                        #   z_shift_max_arr, 
+                        z_shifted_range, 
                 output_dir=args.output,
                 template_path=args.temp_dir,
                 N_targets=N_targets)
