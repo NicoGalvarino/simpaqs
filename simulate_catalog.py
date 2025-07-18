@@ -16,6 +16,7 @@ import os
 import sys
 import datetime
 import pandas as pd
+from multiprocessing import Pool, cpu_count
 import warnings
 warnings.filterwarnings('ignore', message='invalid value encountered in divide', category=RuntimeWarning)
 # warnings.filterwarnings('default')
@@ -347,7 +348,22 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
     exptimes.to_csv(log_fname, index=False)
     print(' ')
 
-
+def process_chunk_wrapper(chunk_data):
+    """Helper function to process a single chunk of catalog data"""
+    chunk_cat, ruleset_fname, rules_fname, output_dir, template_path, moon, prog_id, chunk_idx, num_chunks, start_idx, end_idx = chunk_data
+    
+    print(f"\nProcessing chunk {chunk_idx+1}/{num_chunks} (QSOs {start_idx+1}-{end_idx})")
+    
+    process_catalog(chunk_cat,
+                    ruleset_fname=ruleset_fname,
+                    rules_fname=rules_fname,
+                    output_dir=output_dir,
+                    template_path=template_path,
+                    moon=moon,
+                    N_targets=len(chunk_cat),
+                    prog_id=prog_id)
+    
+    return f"Chunk {chunk_idx+1}/{num_chunks} completed"
 
 def main():
     parser = ArgumentParser(description="Generate simulated spectra from 4MOST Target Catalog")
@@ -362,6 +378,7 @@ def main():
     parser.add_argument('--ruleset', type=str, default='./../S17_20250122T1443Z_rulesets.csv', help='Ruleset definition (FITS or CSV)')
     parser.add_argument('--temp-dir', type=str, default='/data2/home2/nguerrav/QSO_simpaqs/QSOs_full_cat_with_absorbers_in_blue_arm/', help='Directory of spectral templates')
     parser.add_argument("-o", "--output", type=str, default='/data2/home2/nguerrav/QSO_simpaqs/QSOs_full_cat_with_absorbers_in_blue_arm_ETC_L1_output_with_fobs/', help="output directory")
+    parser.add_argument('--n-cores', type=int, default=None, help='Number of CPU cores to use for parallel processing (default: 75% of available cores)')
     # parser.add_argument('--arm', type=str, default='ALL', choices=['J', 'joined', 'ALL', 'a'])
     parser.add_argument('--prog', type=str, default='4MOST-ETC',
                         help="Determines the PROG_ID header keyword")
@@ -380,33 +397,37 @@ def main():
         N_targets = len(catalog)
 
     if N_targets > 50000:
-        # Process in chunks to manage memory
+        # Process in chunks using parallel processing
         chunk_size = 10000
         num_chunks = (N_targets + chunk_size - 1) // chunk_size
         
+        chunk_data_list = []
         for chunk_idx in range(num_chunks):
             start_idx = chunk_idx * chunk_size
             end_idx = min((chunk_idx + 1) * chunk_size, N_targets)
-
-            print(f"\nProcessing chunk {chunk_idx+1}/{num_chunks} (QSOs {start_idx+1}-{end_idx})")
-            
             chunk_cat = catalog[start_idx:end_idx]
-
-            process_catalog(chunk_cat,
-                            ruleset_fname=args.ruleset,
-                            rules_fname=args.rules,
-                            output_dir=args.output,
-                            template_path=args.temp_dir,
-                            # airmass=args.airmass,
-                            # seeing=args.seeing,
-                            moon=args.moon,
-                            # l1_type=args.arm,
-                            N_targets=N_targets,
-                            prog_id=args.prog,
-                            )
+            
+            chunk_data = (chunk_cat, args.ruleset, args.rules, args.output, 
+                         args.temp_dir, args.moon, args.prog, 
+                         chunk_idx, num_chunks, start_idx, end_idx)
+            chunk_data_list.append(chunk_data)
+        
+        # Use multiprocessing to process chunks in parallel
+        # Use 75% of available CPU cores by default to avoid overwhelming the system
+        if args.n_cores is not None:
+            n_cores = max(1, args.n_cores)
+        else:
+            n_cores = max(1, int(cpu_count() * 0.75))
+        print(f"Processing {num_chunks} chunks using {n_cores} CPU cores")
+        
+        with Pool(processes=n_cores) as pool:
+            results = pool.map(process_chunk_wrapper, chunk_data_list)
+        
+        print("All chunks completed successfully!")
+        for result in results:
+            print(result)
 
     else:
-
         process_catalog(catalog,
                 ruleset_fname=args.ruleset,
                 rules_fname=args.rules,

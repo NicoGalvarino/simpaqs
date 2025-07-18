@@ -343,6 +343,7 @@ def insert_random_MgII(qso_template, MgII_dir, z_shifted_range, # z_shift_max_ar
     # z_shift_max = z_shift_max_arr[z_file_num]
     z_shifted_min, z_shifted_max = z_shifted_range
     # z_shifted = np.random.uniform(-z_shift_max, z_shift_max)
+    # print('z_range =', z_shifted_range)
     z_shifted = np.random.uniform(z_shifted_min, z_shifted_max)
     # while z_qso <= z_shifted:
     #     z_shifted = np.random.uniform(z_shifted_min, z_shifted_max)
@@ -357,14 +358,16 @@ def insert_random_MgII(qso_template, MgII_dir, z_shifted_range, # z_shift_max_ar
     # print('len(idx_with_absorber)', len(idx_with_absorber))
     # print(Counter(mask))
 
-    # if len(idx_with_absorber) == 0:
-    #     continue
+    if len(idx_with_absorber) == 0:
+        print('mask is empty')
         
     MgII_num = np.random.choice(idx_with_absorber)
     # MgII_num = np.random.randint(0, len(MgII_dir[z_file_num]['flux']))
 
     MgII_flux = MgII_dir[z_file_num]['flux'][MgII_num]
     wave = MgII_dir[z_file_num]['wave'][:]
+
+    # print('z_shifted =', z_shifted)
 
     # Shift MgII line based on the random value
     MgII_flux_shifted, z_MgII, mgii_2796_center_pos, mgii_2796_center_wl = shift_metal_abs(wave, MgII_flux, z_shifted, 2796., verbose=verbose)
@@ -417,8 +420,9 @@ def add_MgII_absorber(catalog, MgII_abs, z_shifted_range, #z_shift_max_arr,
     warnings.simplefilter('ignore', fits.card.VerifyWarning)
     # print("Adding MgII to QSO templates:")
 
-
+    # print('in add_MgII_absorber \n')
     for num, row in enumerate(catalog, 1):
+        # print('in add_MgII_absorber for loop \n')
 
         template = row['TEMPLATE']
         template_name_no_ext = template[:len(template)-5]
@@ -440,13 +444,17 @@ def add_MgII_absorber(catalog, MgII_abs, z_shifted_range, #z_shift_max_arr,
             # header_ = hdul[0].header
 
             z_qso = row['REDSHIFT_ESTIMATE']
+            # print('\n z_qso =', z_qso)
 
             if z_qso <= z_shifted_range[0]:
                 pass
 
             else:  # z_qso > z_shifted_range[0]: z_qso at least larger than min of the range
-                z_shifted_range = (z_shifted_range[0], z_qso)
-
+                z_shifted_range = (z_shifted_range[0], z_qso-1e-4)
+            #     if z_shifted_range[1] - z_shifted_range[0] < 0.01:
+            #         print('z_shifted_range =', z_shifted_range)
+            
+            # print('z_shifted_range =', z_shifted_range)
 
             spectrum_t, MgII_flux_shifted_t, MgII_prop = insert_random_MgII(template_fname, #np.array(qso_flux), 
                                                                             MgII_abs, 
@@ -469,12 +477,6 @@ def add_MgII_absorber(catalog, MgII_abs, z_shifted_range, #z_shift_max_arr,
             
             catalog['TEMPLATE_with_MgII'][num-1] = template_MgII
 
-                # MgII_prop = [MgII_dir[z_file_num]['EW_MgII_2796'][MgII_num]/(1+z_MgII),
-                #  MgII_dir[z_file_num]['EW_MgII_2803'][MgII_num]/(1+z_MgII),
-                #  z_MgII, 
-                #  mgii_2796_center_pos, 
-                #  mgii_2796_center_wl]
-
         # progress
         # if (num / len(catalog)) * 100 % 5.0 == 0.0:  # every 5%
         #     sys.stdout.write(f"\r{100*num/len(catalog)}% done \n")
@@ -484,7 +486,10 @@ def add_MgII_absorber(catalog, MgII_abs, z_shifted_range, #z_shift_max_arr,
 
 def process_chunk(chunk_data):
     """Helper function to process a single chunk of catalog data"""
-    chunk_cat, MgII_abs, z_shifted_range, output_dir, template_path, chunk_idx, num_chunks, start_idx, end_idx = chunk_data
+    chunk_cat, mgii_folder, z_shifted_range, output_dir, template_path, chunk_idx, num_chunks, start_idx, end_idx = chunk_data
+    
+    # Load MgII data inside the worker process
+    MgII_abs = load_MgII(mgii_folder)
     
     print(f"\nProcessing chunk {chunk_idx+1}/{num_chunks} (QSOs {start_idx+1}-{end_idx})")
     
@@ -495,6 +500,10 @@ def process_chunk(chunk_data):
                       template_path=template_path,
                       N_targets=len(chunk_cat))
     
+    # Close HDF5 files to free resources
+    for mgii_file in MgII_abs:
+        mgii_file.close()
+    
     return chunk_cat_mgii.to_pandas()
 
 
@@ -503,33 +512,27 @@ def main():
     parser.add_argument('-n', '--number', type=int, default=None)
     parser.add_argument('--temp-dir', type=str, default='/data2/home2/nguerrav/QSO_simpaqs/QSOs_full_cat/', help='Directory of spectral templates')
     parser.add_argument("-o", "--output", type=str, default='/data2/home2/nguerrav/QSO_simpaqs/QSOs_full_cat_with_absorbers_in_blue_arm/', help="output directory")
-    parser.add_argument('--n-cores', type=int, default=None, help='Number of CPU cores to use for parallel processing (default: 75% of available cores)')
+    parser.add_argument('--n-cores', type=int, default=4, help='Number of CPU cores to use for parallel processing (default: 75% of available cores)')
 
     args = parser.parse_args()
 
     t1 = datetime.datetime.now()
     # catalog = Table.read('/data2/home2/nguerrav/Catalogues/ByCycle_Final_Cat_fobs_qso_templates_with_SNR_golden_label.fits')
     catalog = Table.read('/data2/home2/nguerrav/Catalogues/test_set_cat_not_in_golden_sample.fits')  # not in training set
-# print(Counter(catalog['golden']))
-    # catalog = catalog[:10]
-    # print(Counter(catalog['golden']))
-    # catalog = catalog[catalog['golden']==False][:]
 
     catalog['has_MgII'] = False
     catalog['z_MgII'] = -999
     catalog['EW_MgII_2796'] = -999
     catalog['EW_MgII_2803'] = -999
-    catalog['TEMPLATE_with_MgII'] = ' ' * 57
+    catalog['TEMPLATE_with_MgII'] = ' ' * 60
     catalog['EW_MgII_total'] = -999
     catalog['MgII_2796_center_pos'] = -999
     catalog['MgII_2796_center_wl'] = -999
 
-    MgII_abs = load_MgII('/data2/home2/nguerrav/TNG50_spec/')
+    # MgII_abs = load_MgII('/data2/home2/nguerrav/TNG50_spec/')
     arm = 'blue'
     # arm = 'green'
     # arm = 'red'
-    # absorbers_z_05 = h5py.File('/data2/home2/nguerrav/TNG50_spec/spectra_TNG50-1_z0.5_n2000d2-rndfullbox_4MOST-HRS_MgII_combined.hdf5', 'r')
-    # z_shift_max_arr = [0.395, 0.558]
 
     if arm == 'blue':
         z_min = (3926 - 2796) / 2796
@@ -553,7 +556,7 @@ def main():
 
     if N_targets > 50000:
 
-        chunk_size = 10000
+        chunk_size = 1000
         num_chunks = (N_targets + chunk_size - 1) // chunk_size
         
         chunk_data_list = []
@@ -562,8 +565,8 @@ def main():
             end_idx = min((chunk_idx + 1) * chunk_size, N_targets)
             chunk_cat = catalog[start_idx:end_idx]
             
-            chunk_data = (chunk_cat, MgII_abs, z_shifted_range, args.output, 
-                         args.temp_dir, chunk_idx, num_chunks, start_idx, end_idx)
+            chunk_data = (chunk_cat, '/data2/home2/nguerrav/TNG50_spec/', z_shifted_range, 
+                          args.output, args.temp_dir, chunk_idx, num_chunks, start_idx, end_idx)
             chunk_data_list.append(chunk_data)
         
         # Use multiprocessing to process chunks in parallel
@@ -574,14 +577,47 @@ def main():
             n_cores = max(1, int(cpu_count() * 0.75))
         print(f"Processing {num_chunks} chunks using {n_cores} CPU cores")
         
+        output_filepath = '/data2/home2/nguerrav/Catalogues/test_set_cat_not_in_golden_sample_with_MgII.fits'
+        chunks_cat_mgii = []
+        
         with Pool(processes=n_cores) as pool:
-            chunks_cat_mgii = pool.map(process_chunk, chunk_data_list)
-
-        catalog_mgii = pd.concat(chunks_cat_mgii, ignore_index=True)
-        save_to_fits(catalog_mgii, 
-                 '/data2/home2/nguerrav/Catalogues/test_set_cat_not_in_golden_sample_with_MgII.fits')
+            for i in range(0, num_chunks, 10):  # Process in batches of 10 chunks
+                batch_end = min(i + 10, num_chunks)
+                batch_data = chunk_data_list[i:batch_end]
+                
+                print(f"Processing chunks {i+1} to {batch_end}")
+                batch_results = pool.map(process_chunk, batch_data)
+                chunks_cat_mgii.extend(batch_results)
+                
+                # Save every 10 chunks (or at the end)
+                # if len(chunks_cat_mgii) >= 10 or batch_end == num_chunks:
+                if (len(chunks_cat_mgii) % 10 == 0) or batch_end == num_chunks:
+                    print(f"Saving progress after processing {batch_end} chunks...")
+                    
+                    # Concatenate new chunks
+                    new_data = pd.concat(chunks_cat_mgii, ignore_index=True)
+                    
+                    # Read existing file if it exists and concatenate
+                    if os.path.exists(output_filepath):
+                        existing_data = pandas_from_fits(output_filepath)
+                        combined_data = pd.concat([existing_data, new_data], ignore_index=True)
+                    else:
+                        combined_data = new_data
+                    
+                    # Save combined data
+                    save_to_fits(combined_data, output_filepath)
+                    
+                    # Clear memory
+                    chunks_cat_mgii = []
+                    del new_data
+                    if 'existing_data' in locals():
+                        del existing_data
+                        del combined_data
+                    
+                    print(f"Progress saved. Total records processed: {batch_end * chunk_size}")
 
     else:
+        MgII_abs = load_MgII('/data2/home2/nguerrav/TNG50_spec/')
 
         catalog_mgii = add_MgII_absorber(catalog,
                           MgII_abs, 
