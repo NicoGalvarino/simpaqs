@@ -1,5 +1,5 @@
 from astropy.io import fits
-from astropy.table import Table, vstack
+from astropy.table import Table, vstack, Column
 from astropy.time import Time
 import astropy.units as u
 from argparse import ArgumentParser
@@ -12,6 +12,8 @@ import datetime
 import pandas as pd
 import h5py
 import numpy as np
+from multiprocessing import Pool, cpu_count
+from functools import partial
 
 from lmfit.models import VoigtModel
 
@@ -342,8 +344,8 @@ def insert_random_MgII(qso_template, MgII_dir, z_shifted_range, # z_shift_max_ar
     z_shifted_min, z_shifted_max = z_shifted_range
     # z_shifted = np.random.uniform(-z_shift_max, z_shift_max)
     z_shifted = np.random.uniform(z_shifted_min, z_shifted_max)
-    while z_qso <= z_shifted:
-        z_shifted = np.random.uniform(z_shifted_min, z_shifted_max)
+    # while z_qso <= z_shifted:
+    #     z_shifted = np.random.uniform(z_shifted_min, z_shifted_max)
 
     # print(z_shifted)
     # print('z_file_num:', z_file_num)
@@ -413,7 +415,7 @@ def add_MgII_absorber(catalog, MgII_abs, z_shifted_range, #z_shift_max_arr,
     
     warnings.simplefilter('ignore', u.UnitsWarning)
     warnings.simplefilter('ignore', fits.card.VerifyWarning)
-    print("Adding MgII to QSO templates:")
+    # print("Adding MgII to QSO templates:")
 
 
     for num, row in enumerate(catalog, 1):
@@ -423,10 +425,10 @@ def add_MgII_absorber(catalog, MgII_abs, z_shifted_range, #z_shift_max_arr,
         template_MgII = f'{template_name_no_ext}_with_MgII.fits'
         output = os.path.join(output_dir, f"{template_name_no_ext}_with_MgII.fits")
 
-        # if os.path.exists(output):
-        #     pass
-        if False:
+        if os.path.exists(output):
             pass
+        # if False:
+        #     pass
 
         else:
 
@@ -436,6 +438,15 @@ def add_MgII_absorber(catalog, MgII_abs, z_shifted_range, #z_shift_max_arr,
             # np.array(qso_flux)
             # hdul = fits.open(template_fname)  # open a FITS file
             # header_ = hdul[0].header
+
+            z_qso = row['REDSHIFT_ESTIMATE']
+
+            if z_qso <= z_shifted_range[0]:
+                pass
+
+            else:  # z_qso > z_shifted_range[0]: z_qso at least larger than min of the range
+                z_shifted_range = (z_shifted_range[0], z_qso)
+
 
             spectrum_t, MgII_flux_shifted_t, MgII_prop = insert_random_MgII(template_fname, #np.array(qso_flux), 
                                                                             MgII_abs, 
@@ -465,10 +476,26 @@ def add_MgII_absorber(catalog, MgII_abs, z_shifted_range, #z_shift_max_arr,
                 #  mgii_2796_center_wl]
 
         # progress
-        if (num / len(catalog)) * 100 % 5.0 == 0.0:  # every 5%
-            sys.stdout.write(f"\r{100*num/len(catalog)}% done \n")
+        # if (num / len(catalog)) * 100 % 5.0 == 0.0:  # every 5%
+        #     sys.stdout.write(f"\r{100*num/len(catalog)}% done \n")
         sys.stdout.flush()
     return catalog
+
+
+def process_chunk(chunk_data):
+    """Helper function to process a single chunk of catalog data"""
+    chunk_cat, MgII_abs, z_shifted_range, output_dir, template_path, chunk_idx, num_chunks, start_idx, end_idx = chunk_data
+    
+    print(f"\nProcessing chunk {chunk_idx+1}/{num_chunks} (QSOs {start_idx+1}-{end_idx})")
+    
+    chunk_cat_mgii = add_MgII_absorber(chunk_cat,
+                      MgII_abs, 
+                      z_shifted_range, 
+                      output_dir=output_dir,
+                      template_path=template_path,
+                      N_targets=len(chunk_cat))
+    
+    return chunk_cat_mgii.to_pandas()
 
 
 def main():
@@ -476,6 +503,7 @@ def main():
     parser.add_argument('-n', '--number', type=int, default=None)
     parser.add_argument('--temp-dir', type=str, default='/data2/home2/nguerrav/QSO_simpaqs/QSOs_full_cat/', help='Directory of spectral templates')
     parser.add_argument("-o", "--output", type=str, default='/data2/home2/nguerrav/QSO_simpaqs/QSOs_full_cat_with_absorbers_in_blue_arm/', help="output directory")
+    parser.add_argument('--n-cores', type=int, default=None, help='Number of CPU cores to use for parallel processing (default: 75% of available cores)')
 
     args = parser.parse_args()
 
@@ -491,7 +519,7 @@ def main():
     catalog['z_MgII'] = -999
     catalog['EW_MgII_2796'] = -999
     catalog['EW_MgII_2803'] = -999
-    catalog['TEMPLATE_with_MgII'] = ''
+    catalog['TEMPLATE_with_MgII'] = ' ' * 57
     catalog['EW_MgII_total'] = -999
     catalog['MgII_2796_center_pos'] = -999
     catalog['MgII_2796_center_wl'] = -999
@@ -524,29 +552,30 @@ def main():
         N_targets = len(catalog)
 
     if N_targets > 50000:
-        # Process in chunks to manage memory
+
         chunk_size = 10000
         num_chunks = (N_targets + chunk_size - 1) // chunk_size
         
-        chunks_cat_mgii = []
-
+        chunk_data_list = []
         for chunk_idx in range(num_chunks):
             start_idx = chunk_idx * chunk_size
             end_idx = min((chunk_idx + 1) * chunk_size, N_targets)
-
-            print(f"\nProcessing chunk {chunk_idx+1}/{num_chunks} (QSOs {start_idx+1}-{end_idx})")
-            
             chunk_cat = catalog[start_idx:end_idx]
-
-            chunk_cat_mgii = add_MgII_absorber(chunk_cat,
-                              MgII_abs, 
-                            #   z_shift_max_arr, 
-                            z_shifted_range, 
-                            output_dir=args.output,
-                            template_path=args.temp_dir,
-                            N_targets=N_targets,
-                            )
-            chunks_cat_mgii.append(chunk_cat_mgii.to_pandas())
+            
+            chunk_data = (chunk_cat, MgII_abs, z_shifted_range, args.output, 
+                         args.temp_dir, chunk_idx, num_chunks, start_idx, end_idx)
+            chunk_data_list.append(chunk_data)
+        
+        # Use multiprocessing to process chunks in parallel
+        # Use 75% of available CPU cores by default to avoid overwhelming the system
+        if args.n_cores is not None:
+            n_cores = max(1, args.n_cores)
+        else:
+            n_cores = max(1, int(cpu_count() * 0.75))
+        print(f"Processing {num_chunks} chunks using {n_cores} CPU cores")
+        
+        with Pool(processes=n_cores) as pool:
+            chunks_cat_mgii = pool.map(process_chunk, chunk_data_list)
 
         catalog_mgii = pd.concat(chunks_cat_mgii, ignore_index=True)
         save_to_fits(catalog_mgii, 
