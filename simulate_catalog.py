@@ -57,7 +57,8 @@ def update_header(hdu_list, target, prog_id='4MOST-ETC'):
     hdu_list[0].header['SPECUID'] = specuid
     hdu_list[1].header['SPECUID'] = specuid
     hdu_list[1].header['TRG_Z'] = target['REDSHIFT_ESTIMATE']
-    hdu_list[1].header['TRG_TMP'] = os.path.basename(target['TEMPLATE'])
+    # hdu_list[1].header['TRG_TMP'] = os.path.basename(target['TEMPLATE'])
+    hdu_list[1].header['TRG_TMP'] = os.path.basename(target['TEMPLATE_with_MgII'])
     return hdu_list
 
 
@@ -113,7 +114,8 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
 
             ruleset = rulesets[ruleset_name]
             etc = ruleset.etc(alt, seeing*u.arcsec, moon)
-            template_fname = os.path.join(template_path, row['TEMPLATE'])
+            # template_fname = os.path.join(template_path, row['TEMPLATE'])
+            template_fname = os.path.join(template_path, row['TEMPLATE_with_MgII'])
             SED = SEDTemplate(template_fname)
 
             template_wave_min = SED.wavelength.min().value

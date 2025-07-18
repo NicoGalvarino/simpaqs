@@ -1,5 +1,5 @@
 from astropy.io import fits
-from astropy.table import Table, vstack
+from astropy.table import Table, vstack, Column
 from astropy.time import Time
 import astropy.units as u
 from argparse import ArgumentParser
@@ -342,8 +342,8 @@ def insert_random_MgII(qso_template, MgII_dir, z_shifted_range, # z_shift_max_ar
     z_shifted_min, z_shifted_max = z_shifted_range
     # z_shifted = np.random.uniform(-z_shift_max, z_shift_max)
     z_shifted = np.random.uniform(z_shifted_min, z_shifted_max)
-    while z_qso <= z_shifted:
-        z_shifted = np.random.uniform(z_shifted_min, z_shifted_max)
+    # while z_qso <= z_shifted:
+    #     z_shifted = np.random.uniform(z_shifted_min, z_shifted_max)
 
     # print(z_shifted)
     # print('z_file_num:', z_file_num)
@@ -413,7 +413,7 @@ def add_MgII_absorber(catalog, MgII_abs, z_shifted_range, #z_shift_max_arr,
     
     warnings.simplefilter('ignore', u.UnitsWarning)
     warnings.simplefilter('ignore', fits.card.VerifyWarning)
-    print("Adding MgII to QSO templates:")
+    # print("Adding MgII to QSO templates:")
 
 
     for num, row in enumerate(catalog, 1):
@@ -423,9 +423,7 @@ def add_MgII_absorber(catalog, MgII_abs, z_shifted_range, #z_shift_max_arr,
         template_MgII = f'{template_name_no_ext}_with_MgII.fits'
         output = os.path.join(output_dir, f"{template_name_no_ext}_with_MgII.fits")
 
-        # if os.path.exists(output):
-        #     pass
-        if False:
+        if os.path.exists(output):
             pass
 
         else:
@@ -436,6 +434,15 @@ def add_MgII_absorber(catalog, MgII_abs, z_shifted_range, #z_shift_max_arr,
             # np.array(qso_flux)
             # hdul = fits.open(template_fname)  # open a FITS file
             # header_ = hdul[0].header
+
+            z_qso = row['REDSHIFT_ESTIMATE']
+
+            if z_qso <= z_shifted_range[0]:
+                pass
+
+            else:  # z_qso > z_shifted_range[0]: z_qso at least larger than min of the range
+                z_shifted_range = (z_shifted_range[0], z_qso)
+
 
             spectrum_t, MgII_flux_shifted_t, MgII_prop = insert_random_MgII(template_fname, #np.array(qso_flux), 
                                                                             MgII_abs, 
@@ -458,15 +465,9 @@ def add_MgII_absorber(catalog, MgII_abs, z_shifted_range, #z_shift_max_arr,
             
             catalog['TEMPLATE_with_MgII'][num-1] = template_MgII
 
-                # MgII_prop = [MgII_dir[z_file_num]['EW_MgII_2796'][MgII_num]/(1+z_MgII),
-                #  MgII_dir[z_file_num]['EW_MgII_2803'][MgII_num]/(1+z_MgII),
-                #  z_MgII, 
-                #  mgii_2796_center_pos, 
-                #  mgii_2796_center_wl]
-
         # progress
-        if (num / len(catalog)) * 100 % 5.0 == 0.0:  # every 5%
-            sys.stdout.write(f"\r{100*num/len(catalog)}% done \n")
+        # if (num / len(catalog)) * 100 % 5.0 == 0.0:  # every 5%
+        #     sys.stdout.write(f"\r{100*num/len(catalog)}% done \n")
         sys.stdout.flush()
     return catalog
 
@@ -491,7 +492,7 @@ def main():
     catalog['z_MgII'] = -999
     catalog['EW_MgII_2796'] = -999
     catalog['EW_MgII_2803'] = -999
-    catalog['TEMPLATE_with_MgII'] = ''
+    catalog['TEMPLATE_with_MgII'] = ' ' * 57
     catalog['EW_MgII_total'] = -999
     catalog['MgII_2796_center_pos'] = -999
     catalog['MgII_2796_center_wl'] = -999
