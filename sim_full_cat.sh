@@ -1,4 +1,4 @@
-#!/bin/bash
+# !/bin/bash
 # set -e
 
 # /home/nguerrav/miniconda3/envs/etc_4fs/bin/python3 simulate_catalog.py
@@ -12,6 +12,7 @@
 
 #!/bin/bash
 # filepath: /home/nguerrav/4MOST_like_data/simpaqs/sim_full_cat.sh
+
 set -e
 
 # Run insert_absorber.py first

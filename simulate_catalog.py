@@ -58,7 +58,8 @@ def update_header(hdu_list, target, prog_id='4MOST-ETC'):
     hdu_list[0].header['SPECUID'] = specuid
     hdu_list[1].header['SPECUID'] = specuid
     hdu_list[1].header['TRG_Z'] = target['REDSHIFT_ESTIMATE']
-    hdu_list[1].header['TRG_TMP'] = os.path.basename(target['TEMPLATE'])
+    hdu_list[1].header['TRG_TMP'] = os.path.basename(target['TEMPLATE_with_MgII'])
+    # hdu_list[1].header['TRG_TMP'] = os.path.basename(target['TEMPLATE'])
     return hdu_list
 
 
@@ -99,9 +100,10 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
         target_name = row['NAME']
         model_id = f'QSO_sim_ETC_z{z_str}_mag{mag_str}_{target_name}'
         # print(model_id, '\n')
-        output = os.path.join(output_dir, f"{model_id}_LJ1.fits")
+        # output = os.path.join(output_dir, f"{model_id}_LJ1.fits")
+        output = os.path.join(output_dir, f"{model_id}_LJ1_MgII.fits")
 
-        if os.path.exists(output):
+        if os.path.exists(output) or len(row['TEMPLATE_with_MgII']) < 10:
             pass  # spectrum already simulated
 
         else:
@@ -114,8 +116,23 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
 
             ruleset = rulesets[ruleset_name]
             etc = ruleset.etc(alt, seeing*u.arcsec, moon)
-            template_fname = os.path.join(template_path, row['TEMPLATE'])
+            template_fname = os.path.join(template_path, row['TEMPLATE_with_MgII'])
+            # template_fname = os.path.join(template_path, row['TEMPLATE'])
+            
+            # try:
             SED = SEDTemplate(template_fname)
+            # except:
+            #     # warning_msg = f"Skipping QSO {template_fname}"
+            #     # print(warning_msg)
+            #     # print(template_wave_min, template_wave_max)
+            #     # warning_file = os.path.join('./', 'simulate_catalog_warnings.log')
+            #     # with open(warning_file, 'a') as f:
+            #     #     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            #     #     f.write(f"[{timestamp}] Target: {target_name}, z={row['REDSHIFT_ESTIMATE']}, MAG={row['MAG']}, fobs={row['fobs']}, {warning_msg}\n")
+            #     # warning_target_list_file = os.path.join('./', 'simulate_catalog_warnings_skipped_target_list.log')
+            #     # with open(warning_target_list_file, 'a') as f:
+            #     #     f.write(f"{target_name}\n")
+            #     pass
 
             template_wave_min = SED.wavelength.min().value
             template_wave_max = SED.wavelength.max().value
@@ -386,8 +403,7 @@ def main():
     args = parser.parse_args()
 
     t1 = datetime.datetime.now()
-    catalog = Table.read('/data2/home2/nguerrav/Catalogues/test_set_cat_not_in_golden_sample_with_MgII.fits')
-    catalog = catalog[catalog['SNR_mean'] < 0.0]
+    catalog = Table.read('/data2/home2/nguerrav/Catalogues/test_set_cat_not_in_golden_sample_SNR_3_with_MgII.fits')
 
     if args.number is not None:
         N_targets = args.number

@@ -33,6 +33,7 @@ col_format_all_S17 = {
     'EPOCH':np.float32, 'RESOLUTION':np.int16,
     'SUBSURVEY':pd.StringDtype(),
     'TEMPLATE':pd.StringDtype(), 
+    'TEMPLATE_with_MgII':pd.StringDtype(), 
     'RULESET':pd.StringDtype(),
     'EXTENT_FLAG':np.int32,
     'EXTENT_PARAMETER':np.float32,'EXTENT_INDEX':np.float32,
@@ -87,7 +88,13 @@ col_format_all_S17 = {
     'MAGERR_W1': np.float32, 
     'MAG_W2': np.float32, 
     'MAGERR_W2': np.float32, 
-    'SPECTYPE_DESI': pd.StringDtype()
+    'SPECTYPE_DESI': pd.StringDtype(), 
+    'z_MgII': np.float64, 
+    'EW_MgII_2796': np.float64, 
+    'z_MgII': np.float64, 
+    'EW_MgII_2803': np.float64, 
+    'MgII_2796_center_pos': np.int64, 
+    'MgII_2796_center_wl': np.float64
     }
 
 col_units = {
@@ -262,7 +269,7 @@ def shift_metal_abs(wave_mgii, flux_mgii, z_shifted, metal_cent, verbose=False):
     # Find position in grid to which the absorber should be shifted to and shift spectrum
     wl_z_shifted_pos = np.where(wave_mgii <= wl_z_shifted)[0]
     
-    if(len(wl_z_shifted_pos) == 0):
+    if (len(wl_z_shifted_pos) == 0):
         flux_mgii_shifted = flux_mgii
     else:
         wl_z_shifted_pos = wl_z_shifted_pos[-1]
@@ -447,9 +454,10 @@ def add_MgII_absorber(catalog, MgII_abs, z_shifted_range, #z_shift_max_arr,
             # print('\n z_qso =', z_qso)
 
             if z_qso <= z_shifted_range[0]:
-                pass
+                continue
 
-            else:  # z_qso > z_shifted_range[0]: z_qso at least larger than min of the range
+            # else:  # z_qso > z_shifted_range[0]: z_qso at least larger than min of the range
+            elif z_qso > z_shifted_range[0] and z_qso < z_shifted_range[1]:
                 z_shifted_range = (z_shifted_range[0], z_qso-1e-4)
             #     if z_shifted_range[1] - z_shifted_range[0] < 0.01:
             #         print('z_shifted_range =', z_shifted_range)
@@ -518,16 +526,16 @@ def main():
 
     t1 = datetime.datetime.now()
     # catalog = Table.read('/data2/home2/nguerrav/Catalogues/ByCycle_Final_Cat_fobs_qso_templates_with_SNR_golden_label.fits')
-    catalog = Table.read('/data2/home2/nguerrav/Catalogues/test_set_cat_not_in_golden_sample.fits')  # not in training set
+    catalog = Table.read('/data2/home2/nguerrav/Catalogues/test_set_cat_not_in_golden_sample_SNR_3.fits')  # not in training set
 
     catalog['has_MgII'] = False
-    catalog['z_MgII'] = -999
-    catalog['EW_MgII_2796'] = -999
-    catalog['EW_MgII_2803'] = -999
+    catalog['z_MgII'] = -999.000
+    catalog['EW_MgII_2796'] = -999.000
+    catalog['EW_MgII_2803'] = -999.000
     catalog['TEMPLATE_with_MgII'] = ' ' * 60
-    catalog['EW_MgII_total'] = -999
-    catalog['MgII_2796_center_pos'] = -999
-    catalog['MgII_2796_center_wl'] = -999
+    # catalog['EW_MgII_total'] = -999
+    catalog['MgII_2796_center_pos'] = -999.000
+    catalog['MgII_2796_center_wl'] = -999.000
 
     # MgII_abs = load_MgII('/data2/home2/nguerrav/TNG50_spec/')
     arm = 'blue'
@@ -577,7 +585,7 @@ def main():
             n_cores = max(1, int(cpu_count() * 0.75))
         print(f"Processing {num_chunks} chunks using {n_cores} CPU cores")
         
-        output_filepath = '/data2/home2/nguerrav/Catalogues/test_set_cat_not_in_golden_sample_with_MgII.fits'
+        output_filepath = '/data2/home2/nguerrav/Catalogues/test_set_cat_not_in_golden_sample_SNR_3_with_MgII.fits'
         chunks_cat_mgii = []
         
         with Pool(processes=n_cores) as pool:
@@ -629,12 +637,17 @@ def main():
         
         # save_to_fits(catalog_mgii, 
         #              '/data2/home2/nguerrav/Catalogues/ByCycle_Cat_test_set_with_MgII.fits')
-        catalog_mgii.write('/data2/home2/nguerrav/Catalogues/test_set_cat_not_in_golden_sample_with_MgII.fits', format='fits', overwrite=True)
+        catalog_mgii.write('/data2/home2/nguerrav/Catalogues/test_set_cat_not_in_golden_sample_SNR_3_with_MgII.fits', format='fits', overwrite=True)
 
     t2 = datetime.datetime.now()
     dt = t2 - t1
-    
-    print(f"Finished inserting MgII absorbers in {N_targets} QSO templates in {dt.total_seconds():.1f} seconds")
+
+    cat = pandas_from_fits('/data2/home2/nguerrav/Catalogues/test_set_cat_not_in_golden_sample_SNR_3_with_MgII.fits')
+    cat = cat.loc[cat['EW_MgII_2796'] >= 0.0]
+    # cat.write('/data2/home2/nguerrav/Catalogues/test_set_cat_not_in_golden_sample_SNR_3_with_MgII.fits', format='fits', overwrite=True)
+    save_to_fits(cat, '/data2/home2/nguerrav/Catalogues/test_set_cat_not_in_golden_sample_SNR_3_with_MgII.fits')
+
+    # print(f"Finished inserting MgII absorbers in {N_targets} QSO templates in {dt.total_seconds():.1f} seconds")
 
 if __name__ == '__main__':
     main()

@@ -194,7 +194,8 @@ def rebin_and_SNR_single(row):
     target_name = row['NAME']
     model_id = f'QSO_sim_ETC_z{z_str}_mag{mag_str}_{target_name}'
     
-    spec_filename = model_id + '_LJ1.fits'
+    # spec_filename = model_id + '_LJ1.fits'
+    spec_filename = model_id + '_LJ1_MgII.fits'
     L1_spec_file = L1_spec_path / spec_filename
     rebinned_spec_file = rebinned_spec_path / spec_filename
     
@@ -295,6 +296,7 @@ def get_SNR_fast(rebinned_spec):
     SNR_mean = np.nanmean(snr_values)
     
     return SNR_mean, SNR_blue_mean, SNR_green_mean, SNR_red_mean
+
 def process_catalog_parallel(cat, n_cores=None, batch_size=100):
     """Process catalog using multiprocessing with batching"""
     if n_cores is None:
@@ -328,12 +330,17 @@ def process_catalog_parallel(cat, n_cores=None, batch_size=100):
     for idx in cat.index:
         if idx in all_results:
             snr_mean, snr_blue, snr_green, snr_red = all_results[idx]
-            cat.loc[idx, 'SNR_mean'] = snr_mean
-            cat.loc[idx, 'SNR_blue_mean'] = snr_blue
-            cat.loc[idx, 'SNR_green_mean'] = snr_green
-            cat.loc[idx, 'SNR_red_mean'] = snr_red
+            # cat.loc[idx, 'SNR_mean'] = snr_mean
+            # cat.loc[idx, 'SNR_blue_mean'] = snr_blue
+            # cat.loc[idx, 'SNR_green_mean'] = snr_green
+            # cat.loc[idx, 'SNR_red_mean'] = snr_red
+            cat.loc[idx, 'SNR_mean_mgii'] = snr_mean
+            cat.loc[idx, 'SNR_blue_mean_mgii'] = snr_blue
+            cat.loc[idx, 'SNR_green_mean_mgii'] = snr_green
+            cat.loc[idx, 'SNR_red_mean_mgii'] = snr_red
         else:
-            cat.loc[idx, ['SNR_mean', 'SNR_blue_mean', 'SNR_green_mean', 'SNR_red_mean']] = np.nan
+            # cat.loc[idx, ['SNR_mean', 'SNR_blue_mean', 'SNR_green_mean', 'SNR_red_mean']] = np.nan
+            cat.loc[idx, ['SNR_mean_mgii', 'SNR_blue_mean_mgii', 'SNR_green_mean_mgii', 'SNR_red_mean_mgii']] = np.nan
     
     return cat
 
@@ -342,9 +349,9 @@ def main():
     parser.add_argument('-n', '--number', type=int, default=None, help='Number of targets to process')
     parser.add_argument('--n-cores', type=int, default=None, help='Number of CPU cores (default: 75% of available)')
     parser.add_argument('--batch-size', type=int, default=100, help='Batch size for processing (default: 100)')
-    parser.add_argument('--input-cat', type=str, default='test_set_cat_not_in_golden_sample_with_MgII.fits', 
+    parser.add_argument('--input-cat', type=str, default='test_set_cat_not_in_golden_sample_SNR_3_with_MgII.fits', 
                        help='Input catalog filename')
-    parser.add_argument('--output-cat', type=str, default='test_set_cat_not_in_golden_sample_with_MgII_with_SNR.fits',
+    parser.add_argument('--output-cat', type=str, default='test_set_cat_not_in_golden_sample_SNR_3_with_MgII_with_SNR.fits',
                        help='Output catalog filename')
     
     args = parser.parse_args()
@@ -361,12 +368,14 @@ def main():
         cat = cat.head(args.number)
     
     # Add SNR columns if they don't exist
-    for col in ['SNR_mean', 'SNR_blue_mean', 'SNR_green_mean', 'SNR_red_mean']:
+    # for col in ['SNR_mean', 'SNR_blue_mean', 'SNR_green_mean', 'SNR_red_mean']:
+    for col in ['SNR_mean_mgii', 'SNR_blue_mean_mgii', 'SNR_green_mean_mgii', 'SNR_red_mean_mgii']:
         if col not in cat.columns:
             cat[col] = np.nan
     
     # Filter to only process rows that don't have SNR calculated yet
-    mask = cat['SNR_mean'].isna() | (cat['SNR_mean'] < 0)
+    # mask = cat['SNR_mean'].isna() | (cat['SNR_mean'] < 0)
+    mask = cat['SNR_mean_mgii'].isna() | (cat['SNR_mean_mgii'] < 0)
     if mask.any():
         print(f"Processing {mask.sum()} targets that need SNR calculation")
         cat_to_process = cat[mask].copy()
