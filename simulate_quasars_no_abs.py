@@ -212,7 +212,7 @@ def simulate_quasars(nqso=None, expand_factor=1.0, z_list=None, names_list=None,
     qsos.data['abs_qso_mag'] = M_all
     qsos.data['EBV'] = Ebv_all
     qsos.data['MAG'] = aparent_mags
-    qsos.data['MAGERR'] = aparent_mag_errs
+    qsos.data['MAG_ERR'] = aparent_mag_errs
     qsos.data['fobs'] = fobs
     qsos.data['SUBSURVEY'] = subsurveys
 
@@ -257,15 +257,19 @@ def main():
     print(f"Dust mode: {args.dust}")
     print(f"Output directory: {args.dir}")
 
-    cat = pandas_from_fits('/data2/home2/nguerrav/Catalogues/ByCycle_Final_Cat_fobs.fits')
+    cat = pandas_from_fits('/data2/home2/nguerrav/Catalogues/ByCycle_Final_Cat_fobs_qso_templates_with_SNR_golden_label_QSO_props.fits')
+    cat = cat.loc[cat['golden']]
+    print(f'Golden sample original size: {cat.shape[0]}')
 
     if args.number is not None:
         nqsos = args.number
     else:
         nqsos = cat.shape[0]
-    print(f"Total number of quasars to simulate: {nqsos}")
+    
+    expanding_factor = 5.0
+    print(f"Total number of quasars to simulate: {nqsos*expanding_factor}")
 
-    if nqsos > 50000:
+    if nqsos*expanding_factor > 50000:
         # Process in chunks to manage memory
         chunk_size = 10000
         num_chunks = (nqsos + chunk_size - 1) // chunk_size
@@ -280,20 +284,20 @@ def main():
             z_arr = chunk_cat.REDSHIFT_ESTIMATE.values
             names = chunk_cat['NAME'].to_numpy(dtype=str)
             mags_apparent = chunk_cat.MAG.values
-            mags_err_apparent = chunk_cat.MAGERR.values
+            mags_err_apparent = chunk_cat.MAG_ERR.values
             fobs = chunk_cat.fobs.values
             subsurveys = chunk_cat.SUBSURVEY.values
             
             simulate_quasars(
                 nqso=len(z_arr),
-                expand_factor=5.0, 
+                expand_factor=expanding_factor, 
                 z_list=z_arr, 
                 names_list=names,
                 wave_range=(args.wmin, args.wmax),
                 dust_mode=args.dust,
                 output_dir=args.dir, 
                 aparent_mags=mags_apparent, 
-                aparent_magerrs=mags_err_apparent, 
+                aparent_mag_errs=mags_err_apparent, 
                 fobs=fobs, 
                 subsurveys=subsurveys
                 )
@@ -305,13 +309,13 @@ def main():
         z_arr = cat.REDSHIFT_ESTIMATE.values
         names = cat['NAME'].to_numpy(dtype=str)
         mags_apparent = cat.MAG.values
-        mags_err_apparent = cat.MAGERR.values
+        mags_err_apparent = cat.MAG_ERR.values
         fobs = cat.fobs.values
         subsurveys = cat.SUBSURVEY.values
 
         simulate_quasars(
             nqso=args.number,
-            expand_factor=5.0, 
+            expand_factor=expanding_factor, 
             # z_range=(args.zmin, args.zmax),
             z_list=z_arr, 
             # names_list=names,
@@ -320,7 +324,7 @@ def main():
             # BAL=args.bal,
             output_dir=args.dir, 
             aparent_mags=mags_apparent, 
-            aparent_magerrs=mags_err_apparent, 
+            aparent_mag_errs=mags_err_apparent, 
             fobs=fobs, 
             subsurveys=subsurveys
         )
