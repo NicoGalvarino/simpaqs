@@ -97,13 +97,16 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
         z_str = str(np.round(row['REDSHIFT_ESTIMATE'], 4))
         mag_str = str(np.round(row['MAG'], 2))
         ruleset_name = row['RULESET']
-        target_name = row['NAME']
-        model_id = f'QSO_sim_ETC_z{z_str}_mag{mag_str}_{target_name}'
+        target_name = row['TEMPLATE']  # row['NAME']
+        # model_id = f'QSO_sim_ETC_z{z_str}_mag{mag_str}_{target_name}'
+        model_id = f'{target_name}'
         # print(model_id, '\n')
+        output = os.path.join(output_dir, f"{model_id}_ETC_LJ1.fits")
         # output = os.path.join(output_dir, f"{model_id}_LJ1.fits")
-        output = os.path.join(output_dir, f"{model_id}_LJ1_MgII.fits")
+        # output = os.path.join(output_dir, f"{model_id}_LJ1_MgII.fits")
 
-        if os.path.exists(output) or len(row['TEMPLATE_with_MgII']) < 10:
+        # if os.path.exists(output) or len(row['TEMPLATE_with_MgII']) < 10:
+        if os.path.exists(output):
             pass  # spectrum already simulated
 
         else:
@@ -265,27 +268,6 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
 
             dxu = L1DXU(qmost, res, texp)
 
-            # Write individual L1 files
-            # if l1_type[0].upper() == 'A':
-            #     for arm_name in qmost.keys():
-            #         INST = 'L' if spectrograph == 'lrs' else 'H'
-            #         INST += arm_name.upper()[0]
-            #         # INST += '1'
-
-            #         z_str = str(np.round(row['REDSHIFT_ESTIMATE'], 4))
-            #         model_id = f'QSO_sim_ETC_z{z_str}_{target_name}'
-            #         output_arm = os.path.join(output_dir, f'{model_id}_{INST}.fits')  # saves fluxin ADU
-            #         try:
-            #             hdu_list = dxu.per_arm(arm_name)
-            #             hdu_list = update_header(hdu_list, row)
-            #             hdu_list.writeto(output_arm, overwrite=True)
-            #         except ValueError as e:
-            #             print(f"Failed to save the spectrum: {row['TEMPLATE']}")
-            #             print(f"for arm: {arm_name}")
-
-            # if spectrograph.lower() == 'lrs':
-            # Create JOINED L1 SPECTRUM:
-
             # try:
             hdu_list = dxu.joined()
             
@@ -393,8 +375,8 @@ def main():
     parser.add_argument('-n', '--number', type=int, default=None)
     parser.add_argument('--rules', type=str, default='./../S17_20250122T1441Z_rules.csv', help='Rules definition (FITS or CSV)')
     parser.add_argument('--ruleset', type=str, default='./../S17_20250122T1443Z_rulesets.csv', help='Ruleset definition (FITS or CSV)')
-    parser.add_argument('--temp-dir', type=str, default='/data2/home2/nguerrav/QSO_simpaqs/QSOs_full_cat_with_absorbers_in_blue_arm/', help='Directory of spectral templates')
-    parser.add_argument("-o", "--output", type=str, default='/data2/home2/nguerrav/QSO_simpaqs/QSOs_full_cat_with_absorbers_in_blue_arm_ETC_L1_output_with_fobs/', help="output directory")
+    parser.add_argument('--temp-dir', type=str, default='/data2/home2/nguerrav/QSO_simpaqs/golden_sample_expanded/QSO_templates/', help='Directory of spectral templates')
+    parser.add_argument("-o", "--output", type=str, default='/data2/home2/nguerrav/QSO_simpaqs/golden_sample_expanded/QSOs_L1_output_with_fobs/', help="output directory")
     parser.add_argument('--n-cores', type=int, default=None, help='Number of CPU cores to use for parallel processing (default: 75% of available cores)')
     # parser.add_argument('--arm', type=str, default='ALL', choices=['J', 'joined', 'ALL', 'a'])
     parser.add_argument('--prog', type=str, default='4MOST-ETC',
@@ -403,7 +385,10 @@ def main():
     args = parser.parse_args()
 
     t1 = datetime.datetime.now()
-    catalog = Table.read('/data2/home2/nguerrav/Catalogues/test_set_cat_not_in_golden_sample_SNR_3_with_MgII.fits')
+    # catalog = Table.read('/data2/home2/nguerrav/Catalogues/test_set_cat_not_in_golden_sample_SNR_3_with_MgII.fits')
+    catalog = Table.read('/data2/home2/nguerrav/Catalogues/golden_sample_expanded.fits')
+
+    catalog['RULESET'] = 'Fixed_BG_NOISE_0p33hr_Rulesets'
 
     if args.number is not None:
         N_targets = args.number
@@ -428,8 +413,6 @@ def main():
                          chunk_idx, num_chunks, start_idx, end_idx)
             chunk_data_list.append(chunk_data)
         
-        # Use multiprocessing to process chunks in parallel
-        # Use 75% of available CPU cores by default to avoid overwhelming the system
         if args.n_cores is not None:
             n_cores = max(1, args.n_cores)
         else:

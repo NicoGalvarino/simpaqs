@@ -23,8 +23,8 @@ spec_units = {
 
 etc_grid = np.load('/data2/home2/nguerrav/QSO_simpaqs/npy_files/etc_wavelength_grid.npy')
 cat_path =           Path('/data2/home2/nguerrav/Catalogues/')
-L1_spec_path =       Path('/data2/home2/nguerrav/QSO_simpaqs/QSOs_full_cat_with_absorbers_in_blue_arm_ETC_L1_output_with_fobs/')
-rebinned_spec_path = Path('/data2/home2/nguerrav/QSO_simpaqs/QSOs_full_cat_with_absorbers_in_blue_arm_ETC_L1_output_with_fobs_etc_grid/')
+L1_spec_path =       Path('/data2/home2/nguerrav/QSO_simpaqs/golden_sample_expanded/QSOs_L1_output_with_fobs/')
+rebinned_spec_path = Path('/data2/home2/nguerrav/QSO_simpaqs/golden_sample_expanded/QSOs_L1_output_with_fobs_rebinned/')
 rebinned_spec_path.mkdir(exist_ok=True)
 
 def process_batch(batch_data):
@@ -46,11 +46,13 @@ def rebin_and_SNR_single(row):
     """Process a single row - optimized version"""
     z_str = str(np.round(row['REDSHIFT_ESTIMATE'], 4))
     mag_str = str(np.round(row['MAG'], 2))
-    target_name = row['NAME']
-    model_id = f'QSO_sim_ETC_z{z_str}_mag{mag_str}_{target_name}'
-    
+    target_name = row['TEMPLATE']  # row['NAME']
+    # model_id = f'QSO_sim_ETC_z{z_str}_mag{mag_str}_{target_name}'
+    model_id = f'{target_name}'
+
     # spec_filename = model_id + '_LJ1.fits'
-    spec_filename = model_id + '_LJ1_MgII.fits'
+    # spec_filename = model_id + '_LJ1_MgII.fits'
+    spec_filename = model_id + '_ETC_LJ1.fits'
     L1_spec_file = L1_spec_path / spec_filename
     rebinned_spec_file = rebinned_spec_path / spec_filename
     
@@ -204,9 +206,9 @@ def main():
     parser.add_argument('-n', '--number', type=int, default=None, help='Number of targets to process')
     parser.add_argument('--n-cores', type=int, default=None, help='Number of CPU cores (default: 75% of available)')
     parser.add_argument('--batch-size', type=int, default=100, help='Batch size for processing (default: 100)')
-    parser.add_argument('--input-cat', type=str, default='test_set_cat_not_in_golden_sample_SNR_3_with_MgII.fits', 
+    parser.add_argument('--input-cat', type=str, default='golden_sample_expanded.fits', 
                        help='Input catalog filename')
-    parser.add_argument('--output-cat', type=str, default='test_set_cat_not_in_golden_sample_SNR_3_with_MgII_with_SNR.fits',
+    parser.add_argument('--output-cat', type=str, default='golden_sample_expanded.fits',
                        help='Output catalog filename')
     
     args = parser.parse_args()
