@@ -44,7 +44,8 @@ def process_batch(batch_data):
 
 def rebin_and_SNR_single(row):
     """Process a single row - optimized version"""
-    z_str = str(np.round(row['REDSHIFT_ESTIMATE'], 4))
+    # z_str = str(np.round(row['REDSHIFT_ESTIMATE'], 4))
+    z_str = str(np.round(row['redshift'], 4))
     mag_str = str(np.round(row['MAG'], 2))
     target_name = row['TEMPLATE']  # row['NAME']
     # model_id = f'QSO_sim_ETC_z{z_str}_mag{mag_str}_{target_name}'

@@ -4,7 +4,7 @@ set -e
 /home/nguerrav/miniconda3/envs/etc_4fs/bin/python3 simulate_quasars_no_abs.py
 if [ $? -eq 0 ]; then
     echo "simulate_quasars_no_abs.py completed successfully"
-    
+
     /home/nguerrav/miniconda3/envs/etc_4fs/bin/python3 simulate_catalog.py
     if [ $? -eq 0 ]; then
         echo "simulate_catalog.py completed successfully"

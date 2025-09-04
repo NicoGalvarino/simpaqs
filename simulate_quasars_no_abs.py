@@ -165,6 +165,7 @@ def simulate_quasars(nqso=None, expand_factor=1.0, z_list=None, names_list=None,
 
     # ready to generate spectra
     meta, spectra = buildSpectraBulk(wave, qsos, saveSpectra=True)
+    print('len(spectra) =', len(spectra))
 
     print("Creating quasar models:")
 
@@ -204,7 +205,7 @@ def simulate_quasars(nqso=None, expand_factor=1.0, z_list=None, names_list=None,
         hdu.append(tab)
         hdu.writeto(filename, overwrite=True, output_verify='silentfix')
 
-    qsos.data['TEMPLATE'] = all_ids
+    qsos.data['TEMPLATE'] = np.array(all_ids, dtype='<U50')
     qsos.data['redshift'] = z_all
     qsos.data['log_Mbh'] = logM_BH
     qsos.data['log_REdd'] = logR_Edd
@@ -214,7 +215,7 @@ def simulate_quasars(nqso=None, expand_factor=1.0, z_list=None, names_list=None,
     qsos.data['MAG'] = aparent_mags
     qsos.data['MAG_ERR'] = aparent_mag_errs
     qsos.data['fobs'] = fobs
-    qsos.data['SUBSURVEY'] = subsurveys
+    qsos.data['SUBSURVEY'] = np.array(subsurveys, dtype='<U20') if subsurveys is not None else None
 
     if names_list is not None:
         qsos.data['NAME'] = names_list
@@ -271,7 +272,7 @@ def main():
 
     if nqsos*expanding_factor > 50000:
         # Process in chunks to manage memory
-        chunk_size = 10000
+        chunk_size = int(np.ceil(10000 / expanding_factor))
         num_chunks = (nqsos + chunk_size - 1) // chunk_size
         
         for chunk_idx in range(num_chunks):
@@ -282,7 +283,7 @@ def main():
             
             chunk_cat = cat.iloc[start_idx:end_idx]
             z_arr = chunk_cat.REDSHIFT_ESTIMATE.values
-            names = chunk_cat['NAME'].to_numpy(dtype=str)
+            # names = chunk_cat['NAME'].to_numpy(dtype=str)
             mags_apparent = chunk_cat.MAG.values
             mags_err_apparent = chunk_cat.MAG_ERR.values
             fobs = chunk_cat.fobs.values
@@ -292,7 +293,7 @@ def main():
                 nqso=len(z_arr),
                 expand_factor=expanding_factor, 
                 z_list=z_arr, 
-                names_list=names,
+                # names_list=names,
                 wave_range=(args.wmin, args.wmax),
                 dust_mode=args.dust,
                 output_dir=args.dir, 
@@ -302,7 +303,8 @@ def main():
                 subsurveys=subsurveys
                 )
             
-            del chunk_cat, z_arr, names
+            # del chunk_cat, z_arr, names
+            del chunk_cat, z_arr
             gc.collect()
 
     else:
@@ -314,7 +316,7 @@ def main():
         subsurveys = cat.SUBSURVEY.values
 
         simulate_quasars(
-            nqso=args.number,
+            nqso=len(z_arr),
             expand_factor=expanding_factor, 
             # z_range=(args.zmin, args.zmax),
             z_list=z_arr, 
