@@ -292,48 +292,47 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
             res['target'][idx] += CR_boost
             res['noise'][idx] = np.sqrt(res['noise'][idx]**2 + CR_boost * u.electron)
 
-            dxu = L1DXU(qmost, res, texp_fobs)
-
-            # try:
-            hdu_list = dxu.joined()
+            try:
+                dxu = L1DXU(qmost, res, texp_fobs)
+                hdu_list = dxu.joined()
+                
+                # Set flux floor and clean up data
+                flux_floor = 1e-25
+                flux_data = hdu_list[1].data['FLUX']
+                err_data = hdu_list[1].data['ERR_FLUX']
+                
+                # Count issues before fixing
+                n_negative = np.sum(flux_data < 0)
+                n_zero = np.sum(flux_data == 0)
+                n_nan_flux = np.sum(np.isnan(flux_data))
+                n_nan_err = np.sum(~np.isfinite(err_data))
+                
+                # if n_negative + n_zero + n_nan_flux + n_nan_err > 0:
+                #     print(f"Cleaning spectrum {model_id}: {n_negative} negative, {n_zero} zero, {n_nan_flux} NaN flux, {n_nan_err} bad errors")
+                
+                # Fix flux issues
+                bad_flux_mask = (flux_data <= 0) | np.isnan(flux_data)
+                flux_data[bad_flux_mask] = flux_floor
+                
+                # Fix error issues
+                bad_err_mask = ~np.isfinite(err_data) | (err_data <= 0)
+                err_data[bad_err_mask] = np.sqrt(flux_floor) * 10  # Conservative error
+                
+                # Update HDU data
+                hdu_list[1].data['FLUX'] = flux_data
+                hdu_list[1].data['ERR_FLUX'] = err_data
+                
+                hdu_list = update_header(hdu_list, row, prog_id)
+                hdu_list.writeto(output, overwrite=True)
             
-            # Set flux floor and clean up data
-            flux_floor = 1e-25
-            flux_data = hdu_list[1].data['FLUX']
-            err_data = hdu_list[1].data['ERR_FLUX']
-            
-            # Count issues before fixing
-            n_negative = np.sum(flux_data < 0)
-            n_zero = np.sum(flux_data == 0)
-            n_nan_flux = np.sum(np.isnan(flux_data))
-            n_nan_err = np.sum(~np.isfinite(err_data))
-            
-            # if n_negative + n_zero + n_nan_flux + n_nan_err > 0:
-            #     print(f"Cleaning spectrum {model_id}: {n_negative} negative, {n_zero} zero, {n_nan_flux} NaN flux, {n_nan_err} bad errors")
-            
-            # Fix flux issues
-            bad_flux_mask = (flux_data <= 0) | np.isnan(flux_data)
-            flux_data[bad_flux_mask] = flux_floor
-            
-            # Fix error issues
-            bad_err_mask = ~np.isfinite(err_data) | (err_data <= 0)
-            err_data[bad_err_mask] = np.sqrt(flux_floor) * 10  # Conservative error
-            
-            # Update HDU data
-            hdu_list[1].data['FLUX'] = flux_data
-            hdu_list[1].data['ERR_FLUX'] = err_data
-            
-            hdu_list = update_header(hdu_list, row, prog_id)
-            hdu_list.writeto(output, overwrite=True)
-            
-            # except (IndexError, ValueError) as e:
-            #     error_file = os.path.join(output_dir, 'failed_spectra.txt')
-            #     error_message = f"Failed to save spectrum for {model_id}: {str(e)}"
-            #     with open(error_file, 'a') as f:
-            #         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            #         f.write(f"[{timestamp}] {error_message}\n")
-            #     print(error_message)
-            #     continue  # Skip to next target
+            except (IndexError, ValueError) as e:
+                error_file = os.path.join(output_dir, 'failed_spectra.txt')
+                error_message = f"Failed to save spectrum for {model_id}: {str(e)}"
+                with open(error_file, 'a') as f:
+                    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    f.write(f"[{timestamp}] {error_message}\n")
+                print(error_message)
+                continue  # Skip to next target
 
             # hdu_list = dxu.joined()
             # hdu_list = update_header(hdu_list, row, prog_id)
@@ -403,7 +402,7 @@ def main():
     parser.add_argument('--rules', type=str, default='./../S17_20250122T1441Z_rules.csv', help='Rules definition (FITS or CSV)')
     parser.add_argument('--ruleset', type=str, default='./../S17_20250122T1443Z_rulesets.csv', help='Ruleset definition (FITS or CSV)')
     parser.add_argument('--temp-dir', type=str, default='/data2/home2/nguerrav/QSO_simpaqs/QSOs_full_cat/', help='Directory of spectral templates')
-    parser.add_argument("-o", "--output", type=str, default='/data2/home2/nguerrav/QSO_simpaqs/golden_sample_expanded/QSOs_L1_output_with_fobs_sim682/', help="output directory")
+    parser.add_argument("-o", "--output", type=str, default='/data2/home2/nguerrav/QSO_simpaqs/QSOs_L1_output_with_fobs_sim682/', help="output directory")
     parser.add_argument('--n-cores', type=int, default=None, help='Number of CPU cores to use for parallel processing (default: 75% of available cores)')
     # parser.add_argument('--arm', type=str, default='ALL', choices=['J', 'joined', 'ALL', 'a'])
     parser.add_argument('--prog', type=str, default='4MOST-ETC',

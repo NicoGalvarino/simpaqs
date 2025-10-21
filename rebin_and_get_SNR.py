@@ -23,8 +23,8 @@ spec_units = {
 
 etc_grid = np.load('/data2/home2/nguerrav/QSO_simpaqs/npy_files/etc_wavelength_grid.npy')
 cat_path =           Path('/data2/home2/nguerrav/Catalogues/cat_april15/')
-L1_spec_path =       Path('/data2/home2/nguerrav/QSO_simpaqs/golden_sample_expanded/QSOs_L1_output_with_fobs_sim682/')
-rebinned_spec_path = Path('/data2/home2/nguerrav/QSO_simpaqs/golden_sample_expanded/QSOs_L1_output_with_fobs_sim682_rebinned/')
+L1_spec_path =       Path('/data2/home2/nguerrav/QSO_simpaqs/QSOs_L1_output_with_fobs_sim682/')
+rebinned_spec_path = Path('/data2/home2/nguerrav/QSO_simpaqs/QSOs_L1_output_with_fobs_sim682_rebinned/')
 rebinned_spec_path.mkdir(exist_ok=True)
 
 def process_batch(batch_data):
