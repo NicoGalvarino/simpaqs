@@ -67,8 +67,8 @@ def update_header(hdu_list, target, prog_id='4MOST-ETC'):
     hdu_list[1].header['TRG_MAG'] = target['MAG']
     hdu_list[0].header['SPECUID'] = specuid
     hdu_list[1].header['SPECUID'] = specuid
-    # hdu_list[1].header['TRG_Z'] = target['REDSHIFT_ESTIMATE']
-    hdu_list[1].header['TRG_Z'] = target['redshift']
+    hdu_list[1].header['TRG_Z'] = target['REDSHIFT_ESTIMATE']
+    # hdu_list[1].header['TRG_Z'] = target['redshift']
     # hdu_list[1].header['TRG_TMP'] = os.path.basename(target['TEMPLATE_with_MgII'])
     hdu_list[1].header['TRG_TMP'] = os.path.basename(target['TEMPLATE'])
     return hdu_list
@@ -105,8 +105,8 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
 
     for num, row in enumerate(catalog, 1):
 
-        # z_str = str(np.round(row['REDSHIFT_ESTIMATE'], 4))
-        z_str = str(np.round(row['redshift'], 4))
+        z_str = str(np.round(row['REDSHIFT_ESTIMATE'], 4))
+        # z_str = str(np.round(row['redshift'], 4))
         mag_str = str(np.round(row['MAG'], 2))
         ruleset_name = row['RULESET']
         target_name = row['TEMPLATE']  # row['NAME']
@@ -135,7 +135,8 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
             ruleset = rulesets[ruleset_name]
             etc = ruleset.etc(alt, seeing*u.arcsec, moon)
             # template_fname = os.path.join(template_path, row['TEMPLATE_with_MgII'])
-            template_fname = os.path.join(template_path, row['TEMPLATE']+'.fits')
+            # template_fname = os.path.join(template_path, row['TEMPLATE']+'.fits')
+            template_fname = os.path.join(template_path, row['TEMPLATE'])
             
             # try:
             SED = SEDTemplate(template_fname)
@@ -161,8 +162,8 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
                 warning_file = os.path.join('./', 'simulate_catalog_warnings.log')
                 with open(warning_file, 'a') as f:
                     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    # f.write(f"[{timestamp}] Target: {target_name}, z={row['REDSHIFT_ESTIMATE']}, MAG={row['MAG']}, fobs={row['fobs']}, {warning_msg}\n")
-                    f.write(f"[{timestamp}] Target: {target_name}, z={row['redshift']}, MAG={row['MAG']}, fobs={row['fobs']}, {warning_msg}\n")
+                    f.write(f"[{timestamp}] Target: {target_name}, z={row['REDSHIFT_ESTIMATE']}, MAG={row['MAG']}, fobs={row['fobs']}, {warning_msg}\n")
+                    # f.write(f"[{timestamp}] Target: {target_name}, z={row['redshift']}, MAG={row['MAG']}, fobs={row['fobs']}, {warning_msg}\n")
                 warning_target_list_file = os.path.join('./', 'simulate_catalog_warnings_target_list.log')
                 with open(warning_target_list_file, 'a') as f:
                     f.write(f"{target_name}\n")
@@ -200,24 +201,25 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
                 exptime_log.append({#'NAME': target_name, 
                                     'MAG': row['MAG'],
                                 'TEXP': texp, 'fobs':row['fobs'], 'TEXP_fobs':texp_fobs, 
-                                # 'REDSHIFT': row['REDSHIFT_ESTIMATE'], 
-                                'REDSHIFT': row['redshift'], 
+                                'REDSHIFT': row['REDSHIFT_ESTIMATE'], 
+                                # 'REDSHIFT': row['redshift'], 
                                 'SUBSURVEY': row['SUBSURVEY'], 'SEEING': seeing, 'AIRMASS': airmass})
             else:
+                texp_fobs = texp
                 exptime_log.append({#'NAME': target_name, 
                                     'MAG': row['MAG'],
                                 'TEXP': texp, 
-                                # 'REDSHIFT': row['REDSHIFT_ESTIMATE'], 
-                                'REDSHIFT': row['redshift'], 
+                                'REDSHIFT': row['REDSHIFT_ESTIMATE'], 
+                                # 'REDSHIFT': row['redshift'], 
                                 'SUBSURVEY': row['SUBSURVEY'], 'SEEING': seeing, 'AIRMASS': airmass})
 
-            res = obs.expose(texp)  # 'wavelength', 'binwidth', 'efficiency', 'gain', , 'target', 'sky', 'dark', 'ron', 'noise'
+            res = obs.expose(texp_fobs)  # 'wavelength', 'binwidth', 'efficiency', 'gain', , 'target', 'sky', 'dark', 'ron', 'noise'
 
             # if np.isnan(res['target']).any():
             #     res['target'][np.isnan(res['target'])] = 0.
             # if np.isnan(res['sky']).any():
             #     res['sky'][np.isnan(res['sky'])] = 0.
-            res = obs.expose(texp)
+            # res = obs.expose(texp)
 
             flux_floor = 1e-25  # Very small positive value
             if np.isnan(res['target']).any():
@@ -228,8 +230,8 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
                 warning_file = os.path.join('./', 'simulate_catalog_warnings.log')
                 with open(warning_file, 'a') as f:
                     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    # f.write(f"[{timestamp}] Target: {target_name}, z={row['REDSHIFT_ESTIMATE']}, MAG={row['MAG']}, fobs={row['fobs']}, {warning_msg}\n")
-                    f.write(f"[{timestamp}] Target: {target_name}, z={row['redshift']}, MAG={row['MAG']}, fobs={row['fobs']}, {warning_msg}\n")
+                    f.write(f"[{timestamp}] Target: {target_name}, z={row['REDSHIFT_ESTIMATE']}, MAG={row['MAG']}, fobs={row['fobs']}, {warning_msg}\n")
+                    # f.write(f"[{timestamp}] Target: {target_name}, z={row['redshift']}, MAG={row['MAG']}, fobs={row['fobs']}, {warning_msg}\n")
 
                 warning_target_list_file = os.path.join('./', 'simulate_catalog_warnings_target_list.log')
                 with open(warning_target_list_file, 'a') as f:
@@ -243,8 +245,8 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
                 warning_file = os.path.join('./', 'simulate_catalog_warnings.log')
                 with open(warning_file, 'a') as f:
                     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    # f.write(f"[{timestamp}] Target: {target_name}, z={row['REDSHIFT_ESTIMATE']}, MAG={row['MAG']}, fobs={row['fobs']}, {warning_msg}\n")
-                    f.write(f"[{timestamp}] Target: {target_name}, z={row['redshift']}, MAG={row['MAG']}, fobs={row['fobs']}, {warning_msg}\n")
+                    f.write(f"[{timestamp}] Target: {target_name}, z={row['REDSHIFT_ESTIMATE']}, MAG={row['MAG']}, fobs={row['fobs']}, {warning_msg}\n")
+                    # f.write(f"[{timestamp}] Target: {target_name}, z={row['redshift']}, MAG={row['MAG']}, fobs={row['fobs']}, {warning_msg}\n")
 
                 warning_target_list_file = os.path.join('./', 'simulate_catalog_warnings_target_list.log')
                 with open(warning_target_list_file, 'a') as f:
@@ -284,13 +286,13 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
 
             # Add cosmic rays:
             N_pix = len(res)
-            N_cosmic = np.random.poisson(CR_rate * texp.value * N_pix * 0.8)
+            N_cosmic = np.random.poisson(CR_rate * texp_fobs.value * N_pix * 0.8)
             idx = np.random.choice(np.arange(N_pix), N_cosmic, replace=False)
             CR_boost = 10**np.random.normal(2.0, 0.15, N_cosmic) * u.electron
             res['target'][idx] += CR_boost
             res['noise'][idx] = np.sqrt(res['noise'][idx]**2 + CR_boost * u.electron)
 
-            dxu = L1DXU(qmost, res, texp)
+            dxu = L1DXU(qmost, res, texp_fobs)
 
             # try:
             hdu_list = dxu.joined()
@@ -323,7 +325,7 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
             
             hdu_list = update_header(hdu_list, row, prog_id)
             hdu_list.writeto(output, overwrite=True)
-                
+            
             # except (IndexError, ValueError) as e:
             #     error_file = os.path.join(output_dir, 'failed_spectra.txt')
             #     error_message = f"Failed to save spectrum for {model_id}: {str(e)}"
@@ -365,8 +367,8 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
     #                overwrite=True, comment='# ', format='csv')
     exptimes['TEXP'] = exptimes['TEXP'].round(1)
     exptimes['MAG'] = exptimes['MAG'].round(2)
-    # exptimes['REDSHIFT'] = exptimes['REDSHIFT'].round(4)
-    exptimes['redshift'] = exptimes['redshift'].round(4)
+    exptimes['REDSHIFT'] = exptimes['REDSHIFT'].round(4)
+    # exptimes['redshift'] = exptimes['redshift'].round(4)
     if 'TEXP_fobs' in exptimes.columns:
         exptimes['TEXP_fobs'] = exptimes['TEXP_fobs'].round(1)
     exptimes.to_csv(log_fname, index=False)
@@ -400,8 +402,8 @@ def main():
     parser.add_argument('-n', '--number', type=int, default=None)
     parser.add_argument('--rules', type=str, default='./../S17_20250122T1441Z_rules.csv', help='Rules definition (FITS or CSV)')
     parser.add_argument('--ruleset', type=str, default='./../S17_20250122T1443Z_rulesets.csv', help='Ruleset definition (FITS or CSV)')
-    parser.add_argument('--temp-dir', type=str, default='/data2/home2/nguerrav/QSO_simpaqs/golden_sample_expanded/QSO_templates/', help='Directory of spectral templates')
-    parser.add_argument("-o", "--output", type=str, default='/data2/home2/nguerrav/QSO_simpaqs/golden_sample_expanded/QSOs_L1_output_with_fobs/', help="output directory")
+    parser.add_argument('--temp-dir', type=str, default='/data2/home2/nguerrav/QSO_simpaqs/QSOs_full_cat/', help='Directory of spectral templates')
+    parser.add_argument("-o", "--output", type=str, default='/data2/home2/nguerrav/QSO_simpaqs/golden_sample_expanded/QSOs_L1_output_with_fobs_sim682/', help="output directory")
     parser.add_argument('--n-cores', type=int, default=None, help='Number of CPU cores to use for parallel processing (default: 75% of available cores)')
     # parser.add_argument('--arm', type=str, default='ALL', choices=['J', 'joined', 'ALL', 'a'])
     parser.add_argument('--prog', type=str, default='4MOST-ETC',
@@ -410,10 +412,9 @@ def main():
     args = parser.parse_args()
 
     t1 = datetime.datetime.now()
-    # catalog = Table.read('/data2/home2/nguerrav/Catalogues/test_set_cat_not_in_golden_sample_SNR_3_with_MgII.fits')
-    catalog = Table.read('/data2/home2/nguerrav/Catalogues/golden_sample_expanded.fits')
+    catalog = Table.read('/data2/home2/nguerrav/Catalogues/cat_april15/ByCycle_Final_cat_with_qselfie_682.fits')
     print(catalog.columns)
-    print(len(catalog))  # 82475
+    print(len(catalog))
 
     catalog['RULESET'] = 'Fixed_BG_NOISE_0p33hr_Rulesets'
     # catalog.rename_column('redshift', 'REDSHIFT_ESTIMATE')

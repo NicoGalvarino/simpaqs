@@ -22,9 +22,9 @@ spec_units = {
 }
 
 etc_grid = np.load('/data2/home2/nguerrav/QSO_simpaqs/npy_files/etc_wavelength_grid.npy')
-cat_path =           Path('/data2/home2/nguerrav/Catalogues/')
-L1_spec_path =       Path('/data2/home2/nguerrav/QSO_simpaqs/golden_sample_expanded/QSOs_L1_output_with_fobs/')
-rebinned_spec_path = Path('/data2/home2/nguerrav/QSO_simpaqs/golden_sample_expanded/QSOs_L1_output_with_fobs_rebinned/')
+cat_path =           Path('/data2/home2/nguerrav/Catalogues/cat_april15/')
+L1_spec_path =       Path('/data2/home2/nguerrav/QSO_simpaqs/golden_sample_expanded/QSOs_L1_output_with_fobs_sim682/')
+rebinned_spec_path = Path('/data2/home2/nguerrav/QSO_simpaqs/golden_sample_expanded/QSOs_L1_output_with_fobs_sim682_rebinned/')
 rebinned_spec_path.mkdir(exist_ok=True)
 
 def process_batch(batch_data):
@@ -207,9 +207,9 @@ def main():
     parser.add_argument('-n', '--number', type=int, default=None, help='Number of targets to process')
     parser.add_argument('--n-cores', type=int, default=None, help='Number of CPU cores (default: 75% of available)')
     parser.add_argument('--batch-size', type=int, default=100, help='Batch size for processing (default: 100)')
-    parser.add_argument('--input-cat', type=str, default='golden_sample_expanded.fits', 
+    parser.add_argument('--input-cat', type=str, default='ByCycle_Final_cat_with_qselfie_682.fits', 
                        help='Input catalog filename')
-    parser.add_argument('--output-cat', type=str, default='golden_sample_expanded.fits',
+    parser.add_argument('--output-cat', type=str, default='ByCycle_Final_cat_with_qselfie_682_with_SNR.fits',
                        help='Output catalog filename')
     
     args = parser.parse_args()
