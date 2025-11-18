@@ -261,8 +261,8 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
                 warning_file = os.path.join('./', 'simulate_catalog_warnings.log')
                 with open(warning_file, 'a') as f:
                     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    # f.write(f"[{timestamp}] Target: {target_name}, z={row['REDSHIFT_ESTIMATE']}, MAG={row['MAG']}, fobs={row['fobs']}, {warning_msg}\n")
-                    f.write(f"[{timestamp}] Target: {target_name}, z={row['redshift']}, MAG={row['MAG']}, fobs={row['fobs']}, {warning_msg}\n")
+                    f.write(f"[{timestamp}] Target: {target_name}, z={row['REDSHIFT_ESTIMATE']}, MAG={row['MAG']}, fobs={row['fobs']}, {warning_msg}\n")
+                    # f.write(f"[{timestamp}] Target: {target_name}, z={row['redshift']}, MAG={row['MAG']}, fobs={row['fobs']}, {warning_msg}\n")
             
                 warning_target_list_file = os.path.join('./', 'simulate_catalog_warnings_target_list.log')
                 with open(warning_target_list_file, 'a') as f:
@@ -277,8 +277,8 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
                 warning_file = os.path.join('./', 'simulate_catalog_warnings.log')
                 with open(warning_file, 'a') as f:
                     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    # f.write(f"[{timestamp}] Target: {target_name}, z={row['REDSHIFT_ESTIMATE']}, MAG={row['MAG']}, fobs={row['fobs']}, {warning_msg}\n")
-                    f.write(f"[{timestamp}] Target: {target_name}, z={row['redshift']}, MAG={row['MAG']}, fobs={row['fobs']}, {warning_msg}\n")
+                    f.write(f"[{timestamp}] Target: {target_name}, z={row['REDSHIFT_ESTIMATE']}, MAG={row['MAG']}, fobs={row['fobs']}, {warning_msg}\n")
+                    # f.write(f"[{timestamp}] Target: {target_name}, z={row['redshift']}, MAG={row['MAG']}, fobs={row['fobs']}, {warning_msg}\n")
 
                 warning_target_list_file = os.path.join('./', 'simulate_catalog_warnings_target_list.log')
                 with open(warning_target_list_file, 'a') as f:

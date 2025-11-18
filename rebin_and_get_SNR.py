@@ -21,11 +21,11 @@ spec_units = {
     'ERR_FLUX': u.erg / (u.AA * u.s * u.cm**2)
 }
 
-etc_grid = np.load('/data2/home2/nguerrav/QSO_simpaqs/npy_files/etc_wavelength_grid.npy')
-cat_path =           Path('/data2/home2/nguerrav/Catalogues/cat_april15/')
-L1_spec_path =       Path('/data2/home2/nguerrav/QSO_simpaqs/QSOs_L1_output_with_fobs_sim682/')
-rebinned_spec_path = Path('/data2/home2/nguerrav/QSO_simpaqs/QSOs_L1_output_with_fobs_sim682_rebinned/')
-rebinned_spec_path.mkdir(exist_ok=True)
+# Global variables - will be set from command-line arguments
+etc_grid = None
+cat_path = None
+L1_spec_path = None
+rebinned_spec_path = None
 
 def process_batch(batch_data):
     """Process a batch of rows for better efficiency"""
@@ -44,8 +44,8 @@ def process_batch(batch_data):
 
 def rebin_and_SNR_single(row):
     """Process a single row - optimized version"""
-    # z_str = str(np.round(row['REDSHIFT_ESTIMATE'], 4))
-    z_str = str(np.round(row['redshift'], 4))
+    z_str = str(np.round(row['REDSHIFT_ESTIMATE'], 4))
+    # z_str = str(np.round(row['redshift'], 4))
     mag_str = str(np.round(row['MAG'], 2))
     target_name = row['TEMPLATE']  # row['NAME']
     # model_id = f'QSO_sim_ETC_z{z_str}_mag{mag_str}_{target_name}'
@@ -211,8 +211,29 @@ def main():
                        help='Input catalog filename')
     parser.add_argument('--output-cat', type=str, default='ByCycle_Final_cat_with_qselfie_682_with_SNR.fits',
                        help='Output catalog filename')
+    parser.add_argument('--cat-path', type=str, 
+                       default='/data2/home2/nguerrav/Catalogues/cat_april15/',
+                       help='Path to catalog directory')
+    parser.add_argument('--l1-spec-path', type=str,
+                       default='/data2/home2/nguerrav/QSO_simpaqs/QSOs_L1_output_with_fobs_sim682/',
+                       help='Path to L1 spectra directory')
+    parser.add_argument('--rebinned-spec-path', type=str,
+                       default='/data2/home2/nguerrav/QSO_simpaqs/QSOs_L1_output_with_fobs_sim682_rebinned/',
+                       help='Path to output rebinned spectra directory')
+    parser.add_argument('--etc-grid-path', type=str,
+                       default='/data2/home2/nguerrav/QSO_simpaqs/npy_files/etc_wavelength_grid.npy',
+                       help='Path to ETC wavelength grid NPY file')
     
     args = parser.parse_args()
+    
+    # Set global paths from arguments
+    global etc_grid, cat_path, L1_spec_path, rebinned_spec_path
+    
+    etc_grid = np.load(args.etc_grid_path)
+    cat_path = Path(args.cat_path)
+    L1_spec_path = Path(args.l1_spec_path)
+    rebinned_spec_path = Path(args.rebinned_spec_path)
+    rebinned_spec_path.mkdir(parents=True, exist_ok=True)
     
     t1 = datetime.datetime.now()
     
