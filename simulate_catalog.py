@@ -109,7 +109,7 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
         # z_str = str(np.round(row['redshift'], 4))
         mag_str = str(np.round(row['MAG'], 2))
         ruleset_name = row['RULESET']
-        target_name = row['TEMPLATE']  # row['NAME']
+        target_name = row['TEMPLATE'][:-5]  # row['NAME']
         # print(target_name)
         # model_id = f'QSO_sim_ETC_z{z_str}_mag{mag_str}_{target_name}'
         model_id = f'{target_name}'
