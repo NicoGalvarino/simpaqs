@@ -392,9 +392,9 @@ def process_chunk_wrapper(chunk_data):
 
 def main():
     parser = ArgumentParser(description="Generate simulated spectra from 4MOST Target Catalog")
-    # parser.add_argument("input", type=str, help="input target FITS catalog", 
-    #                     # default='/data2/home2/nguerrav/QSO_simpaqs/ByCycle_Final_Cat_qso_templates_fobs_notna.fits'
-    #                     )
+    parser.add_argument("--input_cat", type=str, help="input target FITS catalog", 
+                        default='/data2/home2/nguerrav/Catalogues/qselfie_682/ByCycle_Final_cat_with_qselfie_682_with_SNR_training_labels.fits'
+                        )
     parser.add_argument('--airmass', type=float, default=1.2)
     parser.add_argument('--moon', type=str, default='gray', choices=['dark', 'gray', 'bright'])
     parser.add_argument('--seeing', type=float, default=0.8)
@@ -411,7 +411,7 @@ def main():
     args = parser.parse_args()
 
     t1 = datetime.datetime.now()
-    catalog = Table.read('/data2/home2/nguerrav/Catalogues/cat_april15/ByCycle_Final_cat_with_qselfie_682.fits')
+    catalog = Table.read(args.input_cat)
     print(catalog.columns)
     print(len(catalog))
 
