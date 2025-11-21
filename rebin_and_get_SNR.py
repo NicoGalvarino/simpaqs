@@ -47,8 +47,12 @@ def rebin_and_SNR_single(row):
     z_str = str(np.round(row['REDSHIFT_ESTIMATE'], 4))
     # z_str = str(np.round(row['redshift'], 4))
     mag_str = str(np.round(row['MAG'], 2))
-    target_name = row['TEMPLATE']  # row['NAME']
-    # model_id = f'QSO_sim_ETC_z{z_str}_mag{mag_str}_{target_name}'
+    target_name = row['TEMPLATE']
+    
+    # Handle both old format (with .fits) and new format (without .fits)
+    if target_name.endswith('.fits'):
+        target_name = target_name[:-5]  # Remove .fits
+    
     model_id = f'{target_name}'
 
     # spec_filename = model_id + '_LJ1.fits'
