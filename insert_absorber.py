@@ -15,6 +15,7 @@ import numpy as np
 from multiprocessing import Pool, cpu_count
 from functools import partial
 
+from scipy.interpolate import interp1d
 from lmfit.models import VoigtModel
 
 from os import listdir
@@ -107,43 +108,34 @@ def shift_metal_abs(wave_mgii, flux_mgii, z_shifted, metal_cent, verbose=False):
     '''
     # Estimate redshift and position in grid of MgII absoprtion line using a Voigt 
     # profile fit of the MgII 2796 line
-    z_mgii, wl_z_mgii_pos, mgii_2796_center_wl = estimate_metal_redshift(wave_mgii, flux_mgii, metal_cent)
+    z_mgii_original, wl_z_mgii_pos, mgii_2796_center_wl = estimate_metal_redshift(wave_mgii, flux_mgii, metal_cent)
     # z_shifted = z_mgii + z_shift
     
-    # Calculate central wavelength of shifted and original MgII 2796 line
-    wl_z_shifted = metal_cent * (1 + z_shifted)
-    wl_z_mgii = metal_cent * (1 + z_mgii)
+    # MgII rest frame
+    wave_rest = wave_mgii / (1 + z_mgii_original)
+    wave_new_obs = wave_rest * (1 + z_shifted)
+
+    interp_func = interp1d(wave_new_obs, flux_mgii, kind='linear', 
+                          bounds_error=False, fill_value=1.0)
     
-    # Find position in grid to which the absorber should be shifted to and shift spectrum
-    wl_z_shifted_pos = np.where(wave_mgii <= wl_z_shifted)[0]
+    flux_mgii_shifted = interp_func(wave_mgii)
     
-    if (len(wl_z_shifted_pos) == 0):
-        flux_mgii_shifted = flux_mgii
-    else:
-        wl_z_shifted_pos = wl_z_shifted_pos[-1]
-        shift = wl_z_shifted_pos - wl_z_mgii_pos
-        flux_mgii_shifted = np.roll(flux_mgii, shift)
-    
-    z_shifted, mgii_2796_center_pos, mgii_2796_center_wl = estimate_metal_redshift(wave_mgii,flux_mgii_shifted, metal_cent)
+    z_shifted_check, mgii_2796_center_pos, mgii_2796_center_wl = estimate_metal_redshift(
+            wave_mgii, flux_mgii_shifted, metal_cent)
     
     # Sanity check
-    if(verbose == True):
-        print('Estimated original z:', z_mgii)
-        print('Estimated shifted z:', z_shifted)
+    if verbose:
+        print(f'Estimated original z: {z_mgii_original:.6f}')
+        print(f'Target shifted z: {z_shifted:.6f}')
+        print(f'Estimated shifted z: {z_shifted_check:.6f}')
+        print(f'Difference: {abs(z_shifted - z_shifted_check):.6e}')
+        
+        mgii_2803_center_expected = metal_cent * (2803/2796) * (1 + z_shifted_check)
+        print(f'Expected MgII 2796 center: {metal_cent * (1 + z_shifted_check):.2f} Å')
+        print(f'Measured MgII 2796 center: {mgii_2796_center_wl:.2f} Å')
+        print(f'Expected doublet separation: {(2803 - 2796) * (1 + z_shifted_check):.2f} Å')
     
-        # if z_mgii <= z_qso:
-
-        #     good_z = True
-        #     if(verbose==True):
-        #         print('good z found')
-        #         print('MgII z: ', z_mgii)
-        #         print('QSO z: ', z_qso)
-        # else:
-        #     if(verbose==True):
-        #         print('no good z - redo')
-  
-    return flux_mgii_shifted, z_shifted, mgii_2796_center_pos, mgii_2796_center_wl
-
+    return flux_mgii_shifted, z_shifted_check, mgii_2796_center_pos, mgii_2796_center_wl
 
 
 def insert_metal_abs(spectrum, MgIIflux):

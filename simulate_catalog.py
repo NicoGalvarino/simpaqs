@@ -135,8 +135,8 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
             ruleset = rulesets[ruleset_name]
             etc = ruleset.etc(alt, seeing*u.arcsec, moon)
             # template_fname = os.path.join(template_path, row['TEMPLATE_with_MgII'])
-            # template_fname = os.path.join(template_path, row['TEMPLATE']+'.fits')
-            template_fname = os.path.join(template_path, row['TEMPLATE'])
+            template_fname = os.path.join(template_path, row['TEMPLATE']+'.fits')
+            # template_fname = os.path.join(template_path, row['TEMPLATE'])
             
             # try:
             SED = SEDTemplate(template_fname)

@@ -50,7 +50,7 @@ from fits_utils import *
 
 # ------------------------------------------------------------------------------------------------------------
 
-__author__ = 'Jens-Kristian Krogager, modified'
+__author__ = 'Jens-Kristian Krogager, modified by Nicolas Guerra-Varas'
 
 
 here = os.path.abspath(os.path.dirname(__file__))
