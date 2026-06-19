@@ -231,6 +231,7 @@ def simulate_quasars(nqso=None, expand_factor=1.0, z_list=None, names_list=None,
 def main():
     from argparse import ArgumentParser
     parser = ArgumentParser('Simulate quasars without absorber templates')
+    parser.add_argument('--input_cat_path', type=str, default='data2/home2/nguerrav/Catalogues/ByCycle_Final_Cat_fobs_qso_templates_with_SNR_golden_label_QSO_props.fits')
     parser.add_argument("--number", type=int, default=None,
                         help="Number of quasars to simulate [default=100]")
     parser.add_argument("--zlist", type=str, default=None,
@@ -247,9 +248,9 @@ def main():
                         help="Maximum wavelength in Angstrom [default=11000]")
     parser.add_argument('--dust', type=str, default='exponential',
                         help="Dust sampling mode: 'exponential' or 'uniform' [default=exponential]")
+    parser.add_argument('--expanding_factor', type=int, default=None)
     parser.add_argument("--dir", type=str, 
-                        # default='/data2/home2/nguerrav/QSO_simpaqs/QSOs_full_cat',
-                        default='/data2/home2/nguerrav/QSO_simpaqs/golden_sample_expanded/QSO_templates', 
+                        default='./QSO_templates/', 
                         help="Output directory")
 
     args = parser.parse_args()
@@ -258,16 +259,20 @@ def main():
     print(f"Dust mode: {args.dust}")
     print(f"Output directory: {args.dir}")
 
-    cat = pandas_from_fits('/data2/home2/nguerrav/Catalogues/ByCycle_Final_Cat_fobs_qso_templates_with_SNR_golden_label_QSO_props.fits')
-    cat = cat.loc[cat['golden']]
-    print(f'Golden sample original size: {cat.shape[0]}')
+    cat = pandas_from_fits(args.input_cat_path)
+    # cat = cat.loc[cat['golden']]
+    # print(f'Golden sample original size: {cat.shape[0]}')
 
     if args.number is not None:
         nqsos = args.number
     else:
         nqsos = cat.shape[0]
     
-    expanding_factor = 5.0
+    if args.expanding_factor is not None:
+        expanding_factor = args.expanding_factor
+    else:
+        expanding_factor = 1.0
+
     print(f"Total number of quasars to simulate: {nqsos*expanding_factor}")
 
     if nqsos*expanding_factor > 50000:
@@ -331,14 +336,15 @@ def main():
             subsurveys=subsurveys
         )
 
-    # model_params = Table.read(f'{args.dir}/model_parameters.fits')
-    # model_params = model_params['NAME', 'ID'].to_pandas()
-    # model_params['ID'] = model_params['ID'].astype(pd.StringDtype())
-    # model_params['NAME'] = model_params['NAME'].astype(pd.StringDtype())
-    # qso_name_to_id = dict(zip(model_params['NAME'], model_params['ID'] + '.fits'))
-    # cat['TEMPLATE'] = cat['NAME'].map(qso_name_to_id)
+    # update each QSOs TEMPLATE column to the newly created template
+    model_params = Table.read(f'{args.dir}/model_parameters.fits')
+    model_params = model_params['NAME', 'ID'].to_pandas()
+    model_params['ID'] = model_params['ID'].astype(pd.StringDtype())
+    model_params['NAME'] = model_params['NAME'].astype(pd.StringDtype())
+    qso_name_to_id = dict(zip(model_params['NAME'], model_params['ID'] + '.fits'))
+    cat['TEMPLATE'] = cat['NAME'].map(qso_name_to_id)
 
-    # save_to_fits(cat, '/data2/home2/nguerrav/Catalogues/ByCycle_Final_Cat_fobs_qso_templates.fits')
+    save_to_fits(cat, args.output_dir, 'ByCycle_Final_Cat_fobs_qso_templates.fits')
 
 if __name__ == '__main__':
     main()

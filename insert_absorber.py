@@ -64,18 +64,18 @@ def estimate_metal_redshift(wave_mgii, flux_mgii, metal_cent):
     line_pos = np.where(flux_mgii == min(flux_mgii))
     
     # Only consider the surrounding 20 Angstroms of the estimated MgII position
-    min_pos = line_pos[0][0]
-    if(min_pos+1 == len(wave_mgii)):
-        min_pos = min_pos-1
-    wl_dist = wave_mgii[min_pos+1] - wave_mgii[min_pos]
-    max_pos = min_pos + int(10/wl_dist)
-    min_pos = min_pos - int(10/wl_dist)
-    if(min_pos < 0):
+    min_flux_pos = line_pos[0][0]
+    if(min_flux_pos+1 == len(wave_mgii)):  # if it's at the red edge
+        min_flux_pos = min_flux_pos-1
+    wl_dist = wave_mgii[min_flux_pos+1] - wave_mgii[min_flux_pos]  # angstrom per pixel
+    max_pos = min_flux_pos + int(10/wl_dist)
+    min_pos = min_flux_pos - int(10/wl_dist)
+    if(min_pos < 0):  # edge
         min_pos = 0
-    if(max_pos > len(wave_mgii)):
+    if(max_pos > len(wave_mgii)):  # edge
         max_pos = len(wave_mgii)
 
-    # Fit a Voigt profile and estimate center of MgII 2796 absorption line  
+    # Fit a Voigt profile and estimate center of MgII 2796 absorption line
     vModel = VoigtModel()
     params = vModel.guess(1-flux_mgii[min_pos:max_pos], x=wave_mgii[min_pos:max_pos])    
     fitted_Voigt = vModel.fit(1-flux_mgii[min_pos:max_pos], params, x=wave_mgii[min_pos:max_pos])

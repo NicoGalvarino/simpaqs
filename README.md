@@ -24,6 +24,7 @@ Install 4MOST ETC:
     QMOST_PYPI=https://gitlab.4most.eu/api/v4/projects/212/packages/pypi/simple
     python -m pip install --extra-index-url $QMOST_PYPI qmostetc
 
+Clone and install `fits_utils` in the same environment: [https://github.com/NicoGalvarino/fits_utils/tree/main](https://github.com/NicoGalvarino/fits_utils/tree/main)
 
 Install `simqso` (not needed if only running `simulate_catalog.py`):
 
@@ -31,73 +32,105 @@ Install `simqso` (not needed if only running `simulate_catalog.py`):
     cd simqso
     python setup.py install
 
+## Pipeline Overview
 
-## Run the ETC and L1 simulation
+The full simulation pipeline runs in three steps:
 
-The script `simulate_catalog.py` will take a 4MOST target catalog with an associated
-set of spectral templates as well as rules and rulesets to generate a list of exposure
-times per target as well as mock L1 spectra (joined LRS spectra by default). This is run as follows:
+1. **`simulate_quasars_no_abs.py`** — Generate synthetic QSO spectral templates without absorbers
+2. **`simulate_catalog.py`** — Run the 4MOST ETC on the templates to produce mock L1 spectra
+3. **`rebin_and_get_SNR.py`** — Rebin L1 spectra onto the ETC wavelength grid and compute per-arm SNR
 
-    python simulate_catalog.py  catalog_name.fits  --temp-dir templates/ --rules rules.csv --ruleset ruleset.csv --output l1_data
+---
 
-The output will be placed in the folder `output/l1_data` by default. The default conditions are as follows:
+## Step 1 — Simulate quasar templates: `simulate_quasars_no_abs.py`
 
- - seeing : 0.8 arcsec
- - airmass : 1.2
- - moon phase : dark
+Generates synthetic QSO continuum + emission line templates using `simqso`. The continuum is a broken power law (break at 1215 Å) with Gaussian-sampled slopes, luminosities derived from log-normal BH mass and Eddington ratio distributions, Fe emission from the VW01 template, and SMC dust extinction.
 
-These conditions can be changed using the command line options: `--seeing`, `--airmass`, `--moon`.
-By default the script generates simulated joined L1 spectra with realistic noise and cosmic ray hits, if the targets are LRS targets. If you also want individual arms for each target, use the option `--arm ALL`. This will also generate spectra in case of HRS targets that do not have a joined counterpart.
+**From a redshift list (recommended — uses the real survey catalogue):**
 
-The catalog, templates, rules and rulesets must follow the 4FS file formats!
+```bash
+python simulate_quasars_no_abs.py \
+    --input_cat_path cat.fits
+    --dir ./output_directory/
+```
 
-### Output
+The script reads redshifts, magnitudes, and subsurvey labels directly from input catalogue provided in `--input_cat`. This input cat should be in the 4FS format with optionally an added `fobs` column.
 
-The output directory is given in the command line `--output` and will contain the simulated L1 spectra (see the L1 pipeline documentationand DXU for format definitions). This folder will also contain a file `exposure_times.csv` which lists the target name, magnitude, estimated exposure time and redshift.
+**Key arguments:**
 
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `--dir` | `./QSO_templates` | Output directory for `.fits` template files |
+| `--number` | all golden-sample QSOs | Number of QSOs to simulate |
+| `--wavelen_grid` | `TNG50_wavelength_grid_extended.npy` | Wavelength grid `.npy` file |
+| `--wmin` / `--wmax` | 3000 / 11000 Å | Wavelength range fallback if no grid file |
+| `--dust` | `exponential` | Dust sampling: `exponential` (Krawczyk+2015) or `uniform` |
 
+Each QSO is saved as a `.fits` file: `QSO_sim_z{z}_{name}.fits` with header keywords `REDSHIFT_ESTIMATE`, `MAG`, `EBV`, `LOG_MBH`, `LOG_REDD`, `LOG_LBOL`.
 
-## Run the full simulator
+By the end, the scripts saves a catalogue table to `--dir` where the `TEMPLATES` column was modified to the newly created template.
 
-A full run of the simulator can be done using the wrapper script:
+---
 
-    python simpaqs.py  N
+## Step 2 — Run the ETC and L1 simulation: `simulate_catalog.py`
 
+Takes a 4MOST target catalogue with associated spectral templates plus rules/rulesets, and produces mock L1 spectra (joined HRS) with realistic noise, cosmic rays, and per-target exposure times.
 
-where `N` is the number of spectra to generate.
-Alternatively, the individual steps can be customized further using the dedicated scripts. 
+```bash
+python simulate_catalog.py \
+    --input_cat /path/to/catalog.fits \
+    --temp-dir  /path/to/QSO_templates/ \
+    --rules     S17_20250122T1441Z_rules.csv \
+    --ruleset   S17_20250122T1443Z_rulesets.csv \
+    --output    /path/to/l1_output/
+```
 
+The catalogue must follow the 4FS format and contain at minimum: `TEMPLATE`, `REDSHIFT_ESTIMATE`, `MAG`, `SUBSURVEY`, `RULESET`, and optionally `fobs`. If no `fobs` column is available in the input cat, the script assumes `fobs = 1.0`.
 
-### Output
-The code generates: 
- - absorption transmission profiles (`abs_templates/`)
- - noiseless quasar continuum models with absorption (`quasar_models/`)
- - simulated L1 4MOST spectra with noise and cosmics (individual arms and joined; `l1_data/`)
+**Key arguments:**
 
-The code also saves a list of the absorption templates generated,
-the absorption systems and their properties, as well as a list of DLAs.
-The quasar continuum parameters are also saved in the `quasar_models` directory,
-and lastly, the observational parameters are saved in the catalog file 'observations.csv'
-in the `l1_data` directory.
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `--input_cat` | (see script) | Input target FITS catalogue |
+| `--temp-dir` | `QSOs_full_cat/` | Directory of spectral template `.fits` files |
+| `--rules` | `S17_…_rules.csv` | 4FS rules CSV |
+| `--ruleset` | `S17_…_rulesets.csv` | 4FS rulesets CSV |
+| `-o` / `--output` | `QSOs_L1_output_…/` | Output directory for L1 `.fits` spectra |
+| `--moon` | `gray` | Sky background: `dark`, `gray`, `bright` |
+| `-n` / `--number` | all | Number of targets to process |
+| `--n-cores` | 75% of CPUs | Cores for parallel processing (chunks of 10 000) |
 
+Output spectra are named `{model_id}_ETC_LJ1.fits`. Exposure times are logged to `exposure_times.csv` in the output directory.
 
-## Methodology
+---
 
-See the individual documentation in the three simulator modules:
-[simulate absorbers](simulate_absorbers.py), [simulate quasars](simulate_quasars.py),
-and [simulate spectra](simulate_spectra.py).
+## Step 3 — Rebin and compute SNR: `rebin_and_get_SNR.py`
 
+Rebins each L1 spectrum onto the ETC wavelength grid using `spectres`, splits into blue/green/red arms, and writes per-arm mean SNR back into the catalogue.
 
-## Create a mock target catalog and simulate it
+```bash
+python rebin_and_get_SNR.py \
+    --input-cat       catalog.fits \
+    --output-cat      catalog_with_SNR.fits \
+    --cat-path        /path/to/catalogues/ \
+    --l1-spec-path    /path/to/l1_output/ \
+    --rebinned-spec-path /path/to/rebinned_output/ \
+    --etc-grid-path   /path/to/etc_wavelength_grid.npy
+```
 
-Using the `prepare_paqs_subset.py` script, you can pick a random subset of the full target catalog. Note that the file path of the catalog is hard-coded in the script. The script assigns a template filename to each entry in the catalog.
-Next you can run the catalog through the simulator which takes our rules and ruleset definitions into account in order to calculate the exposure times for each target. Below I use the BAL models created using `simulate_quasars.py 500 --bal`.
+**Key arguments:**
 
-    python3 simulate_catalog.py PAQS_simulated_BAL_catalog.fits
-        --rules ../../targets/paqs_catalog/output/12APR2024/PAQS_20240412_rules.csv
-        --ruleset ../../targets/paqs_catalog/output/12APR2024/PAQS_20240412_ruleset.csv
-        --temp-dir output/BAL_models
-        -o output/simpaqs_l1_v2 --arm J --prog PAQS
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `--input-cat` | `ByCycle_Final_cat_with_qselfie_682.fits` | Input catalogue |
+| `--output-cat` | `…_with_SNR.fits` | Output catalogue with SNR columns added |
+| `--cat-path` | `Catalogues/cat_april15/` | Catalogue directory |
+| `--l1-spec-path` | `QSOs_L1_output_…/` | Directory of L1 spectra |
+| `--rebinned-spec-path` | `QSOs_L1_output_…_rebinned/` | Output directory for rebinned spectra |
+| `--etc-grid-path` | `npy_files/etc_wavelength_grid.npy` | ETC wavelength grid |
+| `-n` / `--number` | all | Number of targets to process |
+| `--n-cores` | 75% of CPUs | Parallel cores |
+| `--batch-size` | 100 | Spectra per batch |
 
-The `--prog` option add the value 'PAQS' to the FITS header of the output.
+Adds columns `SNR_mean_mgii`, `SNR_blue_mean_mgii`, `SNR_green_mean_mgii`, `SNR_red_mean_mgii` to the output catalogue. Arm boundaries: blue ≤ 4355 Å, green 5159.8–5730 Å, red ≥ 6099.8 Å.
 
