@@ -11,7 +11,7 @@ For this see the section about *ETC simulator* below.
 
 ---
 
-## S17 Run Notes (Danhaive 2025)
+## Lola's Edits and Notes
 
 This fork was used to run the full pipeline on the S17 4MOST quasar sample (~1.35 M targets).
 Key changes from the original codebase:
