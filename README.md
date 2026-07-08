@@ -9,6 +9,25 @@ The metal lines only include singly ionized lines plus CIV and SiIV for now.
 The code also allows a simulation and exposure time estimation of a 4MOST target catalog.
 For this see the section about *ETC simulator* below.
 
+---
+
+## S17 Run Notes (Danhaive 2025)
+
+This fork was used to run the full pipeline on the S17 4MOST quasar sample (~1.35 M targets).
+Key changes from the original codebase:
+
+- **`simulate_catalog.py`**: fixed a race condition in parallel CSV writing; added
+  reconstruction of exposure-time log entries for already-processed targets when resuming
+  after a crash.
+- **`fix_template_column.py`**: new standalone script to merge template IDs back into
+  the input catalogue, replacing a post-processing block in `simulate_quasars_no_abs.py`
+  that crashes on the current codebase.
+
+For a complete step-by-step record of how the pipeline was run end-to-end — including
+exact command-line calls, environment setup, and directory layout — see
+[PIPELINE.md](PIPELINE.md).
+
+---
 
 ## Installation
 

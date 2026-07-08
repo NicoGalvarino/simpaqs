@@ -29,6 +29,6 @@ obs = qmost(45*u.deg,  # airmass
 obs.set_target(flux, 'point')
 tbl = obs.expose((10000*60)*u.s)
 
-np.save('/data2/home2/nguerrav/QSO_simpaqs/npy_files/etc_wavelength_grid.npy', 
+np.save('npy_files/etc_wavelength_grid.npy', 
         np.asarray(tbl['wavelength']) * 10,  # in angstroms
         allow_pickle=True)

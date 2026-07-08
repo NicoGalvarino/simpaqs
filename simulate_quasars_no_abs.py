@@ -34,6 +34,7 @@ from astropy.cosmology import Planck13
 from astropy.table import Table, vstack
 from astropy.io import fits
 import numpy as np
+from numpy.ma import filled
 from scipy import stats
 import os
 import glob
@@ -55,10 +56,11 @@ __author__ = 'Jens-Kristian Krogager, modified by Nicolas Guerra-Varas'
 
 here = os.path.abspath(os.path.dirname(__file__))
 
-def simulate_quasars(nqso=None, expand_factor=1.0, z_list=None, names_list=None, z_range=(1.0, 4.5), 
-                     wavelen_grid='/data2/home2/nguerrav/TNG50_spec/npy_files/TNG50_wavelength_grid_extended.npy', wave_range=(3000, 11000), 
-                     dust_mode='exponential', #BAL=False, 
-                     output_dir='/data2/home2/nguerrav/QSO_simpaqs/QSO_simpaqs/golden_sample_expanded/QSO_templates', 
+def simulate_quasars(nqso=None, expand_factor=1.0, z_list=None, names_list=None, z_range=(1.0, 4.5),
+                     wavelen_grid=None, wave_range=(3000, 11000),
+                     dust_mode='exponential', #BAL=False,
+                     output_dir='Users/lola/ASTRO/ESO/simpaqs/QSO_templates/',
+                     start_num=0,
                      aparent_mags=None, aparent_mag_errs=None, fobs=None, subsurveys=None):
     """
     Simulate a set of quasars without any absorber templates.
@@ -127,7 +129,7 @@ def simulate_quasars(nqso=None, expand_factor=1.0, z_list=None, names_list=None,
     M = AbsMagVar(FixedSampler(M_all), restWave=1450)
     z = RedshiftVar(FixedSampler(z_all))
     
-    # Include dust sampled from E(B-V)
+    # Include dust sampled from E(B-V)f
     if dust_mode.lower() == 'exponential':
         # based roughly on Krawczyk et al. 2015
         Ebv_all = stats.expon.rvs(loc=0., scale=0.05, size=nqso)
@@ -171,8 +173,7 @@ def simulate_quasars(nqso=None, expand_factor=1.0, z_list=None, names_list=None,
 
     # Save the templates:
     all_ids = []
-    # all_bal_types = []
-    dnum = len(glob.glob(f'{output_dir}/QSOs_*.fits')) + 1
+    print(f"Starting loop")
     for num, spec in enumerate(tqdm(spectra)):
         z_str = str(np.round(z_all[num], 4))#.replace('.', '_')
 
@@ -180,7 +181,7 @@ def simulate_quasars(nqso=None, expand_factor=1.0, z_list=None, names_list=None,
             target_name = names_list[num]
             model_id = f'QSO_sim_z{z_str}_{target_name}'
         else:
-            model_id = f'QSO_z{z_str}_{num+dnum:06}'
+            model_id = f'QSO_z{z_str}_{start_num + num + 1:07}'
 
         filename = f'{output_dir}/{model_id}.fits'
         all_ids.append(model_id)
@@ -212,13 +213,16 @@ def simulate_quasars(nqso=None, expand_factor=1.0, z_list=None, names_list=None,
     qsos.data['log_Lbol'] = logL_bol
     qsos.data['abs_qso_mag'] = M_all
     qsos.data['EBV'] = Ebv_all
-    qsos.data['MAG'] = aparent_mags
-    qsos.data['MAG_ERR'] = aparent_mag_errs
-    qsos.data['fobs'] = fobs
-    qsos.data['SUBSURVEY'] = np.array(subsurveys, dtype='<U20') if subsurveys is not None else None
+    # qsos.data['MAG'] = aparent_mags
+    # qsos.data['MAG_ERR'] = aparent_mag_errs
+    # qsos.data['fobs'] = fobs
+    # qsos.data['SUBSURVEY'] = np.array(subsurveys, dtype='<U20') if subsurveys is not None else None
 
     if names_list is not None:
         qsos.data['NAME'] = names_list
+    
+
+    
     
     if os.path.exists(f'{output_dir}/golden_sample_expanded.fits'):
         qsos_prev = Table.read(f'{output_dir}/golden_sample_expanded.fits')
@@ -226,7 +230,7 @@ def simulate_quasars(nqso=None, expand_factor=1.0, z_list=None, names_list=None,
     else:
         qsos = qsos.data
     qsos.write(f'{output_dir}/golden_sample_expanded.fits', overwrite=True)
-    qsos.write('/data2/home2/nguerrav/Catalogues/golden_sample_expanded.fits', overwrite=True)
+    # qsos.write('/data2/home2/nguerrav/Catalogues/golden_sample_expanded.fits', overwrite=True)
 
 def main():
     from argparse import ArgumentParser
@@ -236,7 +240,8 @@ def main():
                         help="Number of quasars to simulate [default=100]")
     parser.add_argument("--zlist", type=str, default=None,
                         help="File containing list of redshifts to use (one per line)")
-    parser.add_argument("--wavelen_grid", type=str, default='/data2/home2/nguerrav/TNG50_spec/npy_files/TNG50_wavelength_grid_extended.npy',
+    parser.add_argument("--wavelen_grid", type=str, default = None,
+    # default='/data2/home2/nguerrav/TNG50_spec/npy_files/TNG50_wavelength_grid_extended.npy',
                         help="File with wavelength grid over which to simulate the QSOs")
     # parser.add_argument("--zmin", type=float, default=1.0,
     #                     help="Minimum redshift [default=1.0]")
@@ -296,15 +301,17 @@ def main():
             
             simulate_quasars(
                 nqso=len(z_arr),
-                expand_factor=expanding_factor, 
-                z_list=z_arr, 
+                expand_factor=expanding_factor,
+                z_list=z_arr,
                 # names_list=names,
+                wavelen_grid=args.wavelen_grid,
                 wave_range=(args.wmin, args.wmax),
                 dust_mode=args.dust,
-                output_dir=args.dir, 
-                aparent_mags=mags_apparent, 
-                aparent_mag_errs=mags_err_apparent, 
-                fobs=fobs, 
+                output_dir=args.dir,
+                start_num=start_idx,
+                aparent_mags=mags_apparent,
+                aparent_mag_errs=mags_err_apparent,
+                fobs=fobs,
                 subsurveys=subsurveys
                 )
             
@@ -322,17 +329,18 @@ def main():
 
         simulate_quasars(
             nqso=len(z_arr),
-            expand_factor=expanding_factor, 
+            expand_factor=expanding_factor,
             # z_range=(args.zmin, args.zmax),
-            z_list=z_arr, 
+            z_list=z_arr,
             # names_list=names,
+            wavelen_grid=args.wavelen_grid,
             wave_range=(args.wmin, args.wmax),
             dust_mode=args.dust,
             # BAL=args.bal,
-            output_dir=args.dir, 
-            aparent_mags=mags_apparent, 
-            aparent_mag_errs=mags_err_apparent, 
-            fobs=fobs, 
+            output_dir=args.dir,
+            aparent_mags=mags_apparent,
+            aparent_mag_errs=mags_err_apparent,
+            fobs=fobs,
             subsurveys=subsurveys
         )
 
