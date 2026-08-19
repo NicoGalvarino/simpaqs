@@ -12,7 +12,10 @@ import datetime
 import pandas as pd
 import h5py
 import numpy as np
+from multiprocessing import Pool, cpu_count
+from functools import partial
 
+from scipy.interpolate import interp1d
 from lmfit.models import VoigtModel
 
 from os import listdir
@@ -24,152 +27,7 @@ warnings.filterwarnings('ignore', message='invalid value encountered in divide',
 
 from qmostetc import SEDTemplate, QMostObservatory, Ruleset, Rule, Filter, L1DXU
 
-col_format_all_S17 = {
-    'NAME':pd.StringDtype(),
-    'RA':np.float64, 'DEC':np.float64,
-    'PMRA':np.float32, 'PMDEC':np.float32,
-    'EPOCH':np.float32, 'RESOLUTION':np.int16,
-    'SUBSURVEY':pd.StringDtype(),
-    'TEMPLATE':pd.StringDtype(), 
-    'RULESET':pd.StringDtype(),
-    'EXTENT_FLAG':np.int32,
-    'EXTENT_PARAMETER':np.float32,'EXTENT_INDEX':np.float32,
-    'MAG_TYPE':pd.StringDtype(),
-    'MAG':np.float32, 'MAG_ERR':np.float32,
-    'DATE_EARLIEST':np.float64, 'DATE_LATEST':np.float64,
-    'CADENCE':np.int64,
-    'REDDENING':np.float32,
-    'REDSHIFT_ESTIMATE':np.float32,
-    'REDSHIFT_ERROR':np.float32,
-    'CAL_MAG_ID_BLUE':pd.StringDtype(),
-    'CAL_MAG_ID_GREEN':pd.StringDtype(),
-    'CAL_MAG_ID_RED':pd.StringDtype(),
-    'CAL_MAG_ERR_BLUE':np.float32,
-    'CAL_MAG_ERR_GREEN':np.float32,
-    'CAL_MAG_ERR_RED':np.float32,
-    'CAL_MAG_BLUE':np.float32,
-    'CAL_MAG_GREEN':np.float32,
-    'CAL_MAG_RED':np.float32,
-    'CLASSIFICATION':pd.StringDtype(),
-    'CLASS_SPEC':pd.StringDtype(),
-    'COMPLETENESS':np.float32,
-    'PARALLAX':np.float32,
-    'SWEEP_NAME':pd.StringDtype(), 
-    'BRICKNAME':pd.StringDtype(), 
-    'TYPE':pd.StringDtype(), 
-    'BAND_LEGACY':pd.StringDtype(), 
-    'REFERENCE_BAND':pd.StringDtype(), 
-    'COMBINATION_USE':pd.StringDtype(), 
-    'REDSHIFT_REF':pd.StringDtype(), 
-    'EBV':np.float64, 
-    'PLXSIG': np.float64, 
-    'PMSIG': np.float64, 
-    'SN_MAX': np.float64, 
-    'MAG_G': np.float32, 
-    'MAGERR_G': np.float32, 
-    'MAG_R': np.float32, 
-    'MAGERR_R': np.float32, 
-    'MAG_I': np.float32, 
-    'MAGERR_I': np.float32, 
-    'MAG_Z': np.float32, 
-    'MAGERR_Z': np.float32, 
-    'MAG_Y': np.float32, 
-    'MAGERR_Y': np.float32, 
-    'MAG_J': np.float32, 
-    'MAGERR_J': np.float32, 
-    'MAG_H': np.float32, 
-    'MAGERR_H': np.float32, 
-    'MAG_K': np.float32, 
-    'MAGERR_K': np.float32, 
-    'MAG_W1': np.float32, 
-    'MAGERR_W1': np.float32, 
-    'MAG_W2': np.float32, 
-    'MAGERR_W2': np.float32, 
-    'SPECTYPE_DESI': pd.StringDtype()
-    }
-
-col_units = {
-    "RA": "deg", "DEC": "deg", "PMRA": "mas/yr", "PMDEC": "mas/yr",
-    "EPOCH": "yr", "MAG": "mag", "MAG_ERR": "mag", "EXTENT_PARAMETER": "arcsec",
-    "DATE_EARLIEST": "d", "DATE_LATEST": "d", "REDDENING": "mag",
-    "CAL_MAG_BLUE": "mag", "CAL_MAG_GREEN": "mag", "CAL_MAG_RED": "mag",
-    "CAL_MAG_ERR_BLUE": "mag", "CAL_MAG_ERR_GREEN": "mag", "CAL_MAG_ERR_RED": "mag",
-    "PARALLAX": "mas",
-}
-
-def cols_format_dict(format_dict, dataframe):
-    matching_columns = {}
-    
-    for col in dataframe.columns:
-        if col in format_dict:
-            matching_columns[col] = format_dict[col]
-    
-    return matching_columns
-
-def format_pd_for_fits(df):
-    
-    df_copy = df.copy()
-    
-    for col_name in df_copy.columns:  # object to string
-
-        col_values = df_copy[col_name].values
-
-        if col_values.dtype == 'object':
-            df_copy[col_name] = df_copy[col_name].astype(pd.StringDtype())
-
-    format_cols = cols_format_dict(col_format_all_S17, df_copy)
-    df_copy = df_copy.astype(format_cols)
-
-    for col_name in df_copy.columns:  # fill empty cells
-
-        col_series = df_copy[col_name].values
-
-        if pd.api.types.is_string_dtype(df_copy[col_name]) or isinstance(col_series.dtype, pd.StringDtype):
-            df_copy[col_name] = df_copy[col_name].fillna('-')
-        else:
-            if col_name in ['MAG_Z', 'MAG', 'MAGERR_Z', 'MAG_ERR', 'MAG_G', 'CAL_MAG_BLUE', 
-                            'MAGERR_G', 'CAL_MAG_ERR_BLUE', 'MAG_R', 'CAL_MAG_GREEN', 'MAGERR_R', 'CAL_MAG_ERR_GREEN', 
-                            'MAG_I', 'CAL_MAG_RED', 'MAGERR_I', 'CAL_MAG_ERR_RED']:
-                df_copy[col_name] = df_copy[col_name].fillna(1.0)
-            else:
-                df_copy[col_name] = df_copy[col_name].fillna(-999)
-    
-    df_copy.reset_index(drop=True, inplace=True)
-    return df_copy
-
-def save_to_fits(df, filepath, meta=None):
-
-    df_for_fits = format_pd_for_fits(df)
-    
-    t = Table()
-
-    format_cols = cols_format_dict(col_format_all_S17, df_for_fits)
-    for col_name in df_for_fits.columns:
-        if col_name in format_cols.keys():
-            col_data = df_for_fits[col_name].astype(col_format_all_S17[col_name])
-            col_data = col_data.values
-        else:
-            col_data = df_for_fits[col_name].values
-
-        if hasattr(col_data, 'values'):
-            t[col_name] = col_data.values
-        else:
-            t[col_name] = [x for x in col_data]
-            
-    if meta:
-        t.meta.update(meta)
-
-    t.write(filepath, format='fits', overwrite=True)
-
-def pandas_from_fits(filepath):
-    t = Table.read(filepath, format='fits')
-    
-    t = t.to_pandas()
-
-    format_cols = cols_format_dict(col_format_all_S17, t)
-    t = t.astype(format_cols)
-
-    return t
+from fits_utils import *
 
 def load_MgII(folder):
     ''' Function to load hdf5 files with MgII absorbers from TNG50
@@ -206,18 +64,18 @@ def estimate_metal_redshift(wave_mgii, flux_mgii, metal_cent):
     line_pos = np.where(flux_mgii == min(flux_mgii))
     
     # Only consider the surrounding 20 Angstroms of the estimated MgII position
-    min_pos = line_pos[0][0]
-    if(min_pos+1 == len(wave_mgii)):
-        min_pos = min_pos-1
-    wl_dist = wave_mgii[min_pos+1] - wave_mgii[min_pos]
-    max_pos = min_pos + int(10/wl_dist)
-    min_pos = min_pos - int(10/wl_dist)
-    if(min_pos < 0):
+    min_flux_pos = line_pos[0][0]
+    if(min_flux_pos+1 == len(wave_mgii)):  # if it's at the red edge
+        min_flux_pos = min_flux_pos-1
+    wl_dist = wave_mgii[min_flux_pos+1] - wave_mgii[min_flux_pos]  # angstrom per pixel
+    max_pos = min_flux_pos + int(10/wl_dist)
+    min_pos = min_flux_pos - int(10/wl_dist)
+    if(min_pos < 0):  # edge
         min_pos = 0
-    if(max_pos > len(wave_mgii)):
+    if(max_pos > len(wave_mgii)):  # edge
         max_pos = len(wave_mgii)
 
-    # Fit a Voigt profile and estimate center of MgII 2796 absorption line  
+    # Fit a Voigt profile and estimate center of MgII 2796 absorption line
     vModel = VoigtModel()
     params = vModel.guess(1-flux_mgii[min_pos:max_pos], x=wave_mgii[min_pos:max_pos])    
     fitted_Voigt = vModel.fit(1-flux_mgii[min_pos:max_pos], params, x=wave_mgii[min_pos:max_pos])
@@ -250,43 +108,34 @@ def shift_metal_abs(wave_mgii, flux_mgii, z_shifted, metal_cent, verbose=False):
     '''
     # Estimate redshift and position in grid of MgII absoprtion line using a Voigt 
     # profile fit of the MgII 2796 line
-    z_mgii, wl_z_mgii_pos, mgii_2796_center_wl = estimate_metal_redshift(wave_mgii, flux_mgii, metal_cent)
+    z_mgii_original, wl_z_mgii_pos, mgii_2796_center_wl = estimate_metal_redshift(wave_mgii, flux_mgii, metal_cent)
     # z_shifted = z_mgii + z_shift
     
-    # Calculate central wavelength of shifted and original MgII 2796 line
-    wl_z_shifted = metal_cent * (1 + z_shifted)
-    wl_z_mgii = metal_cent * (1 + z_mgii)
+    # MgII rest frame
+    wave_rest = wave_mgii / (1 + z_mgii_original)
+    wave_new_obs = wave_rest * (1 + z_shifted)
+
+    interp_func = interp1d(wave_new_obs, flux_mgii, kind='linear', 
+                          bounds_error=False, fill_value=1.0)
     
-    # Find position in grid to which the absorber should be shifted to and shift spectrum
-    wl_z_shifted_pos = np.where(wave_mgii <= wl_z_shifted)[0]
+    flux_mgii_shifted = interp_func(wave_mgii)
     
-    if(len(wl_z_shifted_pos) == 0):
-        flux_mgii_shifted = flux_mgii
-    else:
-        wl_z_shifted_pos = wl_z_shifted_pos[-1]
-        shift = wl_z_shifted_pos - wl_z_mgii_pos
-        flux_mgii_shifted = np.roll(flux_mgii, shift)
-    
-    z_shifted, mgii_2796_center_pos, mgii_2796_center_wl = estimate_metal_redshift(wave_mgii,flux_mgii_shifted, metal_cent)
+    z_shifted_check, mgii_2796_center_pos, mgii_2796_center_wl = estimate_metal_redshift(
+            wave_mgii, flux_mgii_shifted, metal_cent)
     
     # Sanity check
-    if(verbose == True):
-        print('Estimated original z:', z_mgii)
-        print('Estimated shifted z:', z_shifted)
+    if verbose:
+        print(f'Estimated original z: {z_mgii_original:.6f}')
+        print(f'Target shifted z: {z_shifted:.6f}')
+        print(f'Estimated shifted z: {z_shifted_check:.6f}')
+        print(f'Difference: {abs(z_shifted - z_shifted_check):.6e}')
+        
+        mgii_2803_center_expected = metal_cent * (2803/2796) * (1 + z_shifted_check)
+        print(f'Expected MgII 2796 center: {metal_cent * (1 + z_shifted_check):.2f} Å')
+        print(f'Measured MgII 2796 center: {mgii_2796_center_wl:.2f} Å')
+        print(f'Expected doublet separation: {(2803 - 2796) * (1 + z_shifted_check):.2f} Å')
     
-        # if z_mgii <= z_qso:
-
-        #     good_z = True
-        #     if(verbose==True):
-        #         print('good z found')
-        #         print('MgII z: ', z_mgii)
-        #         print('QSO z: ', z_qso)
-        # else:
-        #     if(verbose==True):
-        #         print('no good z - redo')
-  
-    return flux_mgii_shifted, z_shifted, mgii_2796_center_pos, mgii_2796_center_wl
-
+    return flux_mgii_shifted, z_shifted_check, mgii_2796_center_pos, mgii_2796_center_wl
 
 
 def insert_metal_abs(spectrum, MgIIflux):
@@ -341,6 +190,7 @@ def insert_random_MgII(qso_template, MgII_dir, z_shifted_range, # z_shift_max_ar
     # z_shift_max = z_shift_max_arr[z_file_num]
     z_shifted_min, z_shifted_max = z_shifted_range
     # z_shifted = np.random.uniform(-z_shift_max, z_shift_max)
+    # print('z_range =', z_shifted_range)
     z_shifted = np.random.uniform(z_shifted_min, z_shifted_max)
     # while z_qso <= z_shifted:
     #     z_shifted = np.random.uniform(z_shifted_min, z_shifted_max)
@@ -355,14 +205,16 @@ def insert_random_MgII(qso_template, MgII_dir, z_shifted_range, # z_shift_max_ar
     # print('len(idx_with_absorber)', len(idx_with_absorber))
     # print(Counter(mask))
 
-    # if len(idx_with_absorber) == 0:
-    #     continue
+    if len(idx_with_absorber) == 0:
+        print('mask is empty')
         
     MgII_num = np.random.choice(idx_with_absorber)
     # MgII_num = np.random.randint(0, len(MgII_dir[z_file_num]['flux']))
 
     MgII_flux = MgII_dir[z_file_num]['flux'][MgII_num]
     wave = MgII_dir[z_file_num]['wave'][:]
+
+    # print('z_shifted =', z_shifted)
 
     # Shift MgII line based on the random value
     MgII_flux_shifted, z_MgII, mgii_2796_center_pos, mgii_2796_center_wl = shift_metal_abs(wave, MgII_flux, z_shifted, 2796., verbose=verbose)
@@ -415,8 +267,9 @@ def add_MgII_absorber(catalog, MgII_abs, z_shifted_range, #z_shift_max_arr,
     warnings.simplefilter('ignore', fits.card.VerifyWarning)
     # print("Adding MgII to QSO templates:")
 
-
+    # print('in add_MgII_absorber \n')
     for num, row in enumerate(catalog, 1):
+        # print('in add_MgII_absorber for loop \n')
 
         template = row['TEMPLATE']
         template_name_no_ext = template[:len(template)-5]
@@ -425,6 +278,8 @@ def add_MgII_absorber(catalog, MgII_abs, z_shifted_range, #z_shift_max_arr,
 
         if os.path.exists(output):
             pass
+        # if False:
+        #     pass
 
         else:
 
@@ -436,13 +291,18 @@ def add_MgII_absorber(catalog, MgII_abs, z_shifted_range, #z_shift_max_arr,
             # header_ = hdul[0].header
 
             z_qso = row['REDSHIFT_ESTIMATE']
+            # print('\n z_qso =', z_qso)
 
             if z_qso <= z_shifted_range[0]:
-                pass
+                continue
 
-            else:  # z_qso > z_shifted_range[0]: z_qso at least larger than min of the range
-                z_shifted_range = (z_shifted_range[0], z_qso)
-
+            # else:  # z_qso > z_shifted_range[0]: z_qso at least larger than min of the range
+            elif z_qso > z_shifted_range[0] and z_qso < z_shifted_range[1]:
+                z_shifted_range = (z_shifted_range[0], z_qso-1e-4)
+            #     if z_shifted_range[1] - z_shifted_range[0] < 0.01:
+            #         print('z_shifted_range =', z_shifted_range)
+            
+            # print('z_shifted_range =', z_shifted_range)
 
             spectrum_t, MgII_flux_shifted_t, MgII_prop = insert_random_MgII(template_fname, #np.array(qso_flux), 
                                                                             MgII_abs, 
@@ -472,50 +332,66 @@ def add_MgII_absorber(catalog, MgII_abs, z_shifted_range, #z_shift_max_arr,
     return catalog
 
 
+def process_chunk(chunk_data):
+    """Helper function to process a single chunk of catalog data"""
+    chunk_cat, mgii_folder, z_shifted_range, output_dir, template_path, chunk_idx, num_chunks, start_idx, end_idx = chunk_data
+    
+    # Load MgII data inside the worker process
+    MgII_abs = load_MgII(mgii_folder)
+    
+    print(f"\nProcessing chunk {chunk_idx+1}/{num_chunks} (QSOs {start_idx+1}-{end_idx})")
+    
+    chunk_cat_mgii = add_MgII_absorber(chunk_cat,
+                      MgII_abs, 
+                      z_shifted_range, 
+                      output_dir=output_dir,
+                      template_path=template_path,
+                      N_targets=len(chunk_cat))
+    
+    # Close HDF5 files to free resources
+    for mgii_file in MgII_abs:
+        mgii_file.close()
+    
+    return chunk_cat_mgii.to_pandas()
+
+
 def main():
     parser = ArgumentParser(description='Insert MgII absorbers in QSO templates')
     parser.add_argument('-n', '--number', type=int, default=None)
     parser.add_argument('--temp-dir', type=str, default='/data2/home2/nguerrav/QSO_simpaqs/QSOs_full_cat/', help='Directory of spectral templates')
     parser.add_argument("-o", "--output", type=str, default='/data2/home2/nguerrav/QSO_simpaqs/QSOs_full_cat_with_absorbers_in_blue_arm/', help="output directory")
+    parser.add_argument('--n-cores', type=int, default=4, help='Number of CPU cores to use for parallel processing (default: 75% of available cores)')
 
     args = parser.parse_args()
 
     t1 = datetime.datetime.now()
     # catalog = Table.read('/data2/home2/nguerrav/Catalogues/ByCycle_Final_Cat_fobs_qso_templates_with_SNR_golden_label.fits')
-    catalog = Table.read('/data2/home2/nguerrav/Catalogues/test_set_cat_not_in_golden_sample.fits')  # not in training set
-# print(Counter(catalog['golden']))
-    # catalog = catalog[:10]
-    # print(Counter(catalog['golden']))
-    # catalog = catalog[catalog['golden']==False][:]
+    catalog = Table.read('/data2/home2/nguerrav/Catalogues/test_set_cat_not_in_golden_sample_SNR_3.fits')  # not in training set
 
     catalog['has_MgII'] = False
-    catalog['z_MgII'] = -999
-    catalog['EW_MgII_2796'] = -999
-    catalog['EW_MgII_2803'] = -999
-    catalog['TEMPLATE_with_MgII'] = ' ' * 57
-    catalog['EW_MgII_total'] = -999
-    catalog['MgII_2796_center_pos'] = -999
-    catalog['MgII_2796_center_wl'] = -999
+    catalog['z_MgII'] = -999.000
+    catalog['EW_MgII_2796'] = -999.000
+    catalog['EW_MgII_2803'] = -999.000
+    catalog['TEMPLATE_with_MgII'] = ' ' * 60
+    # catalog['EW_MgII_total'] = -999
+    catalog['MgII_2796_center_pos'] = -999.000
+    catalog['MgII_2796_center_wl'] = -999.000
 
-    MgII_abs = load_MgII('/data2/home2/nguerrav/TNG50_spec/')
+    # MgII_abs = load_MgII('/data2/home2/nguerrav/TNG50_spec/')
     arm = 'blue'
     # arm = 'green'
     # arm = 'red'
-    # absorbers_z_05 = h5py.File('/data2/home2/nguerrav/TNG50_spec/spectra_TNG50-1_z0.5_n2000d2-rndfullbox_4MOST-HRS_MgII_combined.hdf5', 'r')
-    # z_shift_max_arr = [0.395, 0.558]
 
     if arm == 'blue':
         z_min = (3926 - 2796) / 2796
         z_max = (4355 - 2803) / 2803
-        z_shifted_range = [z_min, z_max]
     elif arm == 'green':
         z_min = (5160 - 2796) / 2796
         z_max = (5730 - 2803) / 2803
-        z_shifted_range = [z_min, z_max]
     if arm == 'red':
         z_min = (6100 - 2796) / 2796
         z_max = (6790 - 2803) / 2803
-        z_shifted_range = [z_min, z_max]
+    z_shifted_range = [z_min, z_max]
 
     if args.number is not None:
         N_targets = args.number
@@ -525,35 +401,69 @@ def main():
         N_targets = len(catalog)
 
     if N_targets > 50000:
-        # Process in chunks to manage memory
-        chunk_size = 10000
+
+        chunk_size = 1000
         num_chunks = (N_targets + chunk_size - 1) // chunk_size
         
-        chunks_cat_mgii = []
-
+        chunk_data_list = []
         for chunk_idx in range(num_chunks):
             start_idx = chunk_idx * chunk_size
             end_idx = min((chunk_idx + 1) * chunk_size, N_targets)
-
-            print(f"\nProcessing chunk {chunk_idx+1}/{num_chunks} (QSOs {start_idx+1}-{end_idx})")
-            
             chunk_cat = catalog[start_idx:end_idx]
-
-            chunk_cat_mgii = add_MgII_absorber(chunk_cat,
-                              MgII_abs, 
-                            #   z_shift_max_arr, 
-                            z_shifted_range, 
-                            output_dir=args.output,
-                            template_path=args.temp_dir,
-                            N_targets=N_targets,
-                            )
-            chunks_cat_mgii.append(chunk_cat_mgii.to_pandas())
-
-        catalog_mgii = pd.concat(chunks_cat_mgii, ignore_index=True)
-        save_to_fits(catalog_mgii, 
-                 '/data2/home2/nguerrav/Catalogues/test_set_cat_not_in_golden_sample_with_MgII.fits')
+            
+            chunk_data = (chunk_cat, '/data2/home2/nguerrav/TNG50_spec/', z_shifted_range, 
+                          args.output, args.temp_dir, chunk_idx, num_chunks, start_idx, end_idx)
+            chunk_data_list.append(chunk_data)
+        
+        # Use multiprocessing to process chunks in parallel
+        # Use 75% of available CPU cores by default to avoid overwhelming the system
+        if args.n_cores is not None:
+            n_cores = max(1, args.n_cores)
+        else:
+            n_cores = max(1, int(cpu_count() * 0.75))
+        print(f"Processing {num_chunks} chunks using {n_cores} CPU cores")
+        
+        output_filepath = '/data2/home2/nguerrav/Catalogues/test_set_cat_not_in_golden_sample_SNR_3_with_MgII.fits'
+        chunks_cat_mgii = []
+        
+        with Pool(processes=n_cores) as pool:
+            for i in range(0, num_chunks, 10):  # Process in batches of 10 chunks
+                batch_end = min(i + 10, num_chunks)
+                batch_data = chunk_data_list[i:batch_end]
+                
+                print(f"Processing chunks {i+1} to {batch_end}")
+                batch_results = pool.map(process_chunk, batch_data)
+                chunks_cat_mgii.extend(batch_results)
+                
+                # Save every 10 chunks (or at the end)
+                # if len(chunks_cat_mgii) >= 10 or batch_end == num_chunks:
+                if (len(chunks_cat_mgii) % 10 == 0) or batch_end == num_chunks:
+                    print(f"Saving progress after processing {batch_end} chunks...")
+                    
+                    # Concatenate new chunks
+                    new_data = pd.concat(chunks_cat_mgii, ignore_index=True)
+                    
+                    # Read existing file if it exists and concatenate
+                    if os.path.exists(output_filepath):
+                        existing_data = pandas_from_fits(output_filepath)
+                        combined_data = pd.concat([existing_data, new_data], ignore_index=True)
+                    else:
+                        combined_data = new_data
+                    
+                    # Save combined data
+                    save_to_fits(combined_data, output_filepath)
+                    
+                    # Clear memory
+                    chunks_cat_mgii = []
+                    del new_data
+                    if 'existing_data' in locals():
+                        del existing_data
+                        del combined_data
+                    
+                    print(f"Progress saved. Total records processed: {batch_end * chunk_size}")
 
     else:
+        MgII_abs = load_MgII('/data2/home2/nguerrav/TNG50_spec/')
 
         catalog_mgii = add_MgII_absorber(catalog,
                           MgII_abs, 
@@ -565,12 +475,17 @@ def main():
         
         # save_to_fits(catalog_mgii, 
         #              '/data2/home2/nguerrav/Catalogues/ByCycle_Cat_test_set_with_MgII.fits')
-        catalog_mgii.write('/data2/home2/nguerrav/Catalogues/test_set_cat_not_in_golden_sample_with_MgII.fits', format='fits', overwrite=True)
+        catalog_mgii.write('/data2/home2/nguerrav/Catalogues/test_set_cat_not_in_golden_sample_SNR_3_with_MgII.fits', format='fits', overwrite=True)
 
     t2 = datetime.datetime.now()
     dt = t2 - t1
-    
-    print(f"Finished inserting MgII absorbers in {N_targets} QSO templates in {dt.total_seconds():.1f} seconds")
+
+    cat = pandas_from_fits('/data2/home2/nguerrav/Catalogues/test_set_cat_not_in_golden_sample_SNR_3_with_MgII.fits')
+    cat = cat.loc[cat['EW_MgII_2796'] >= 0.0]
+    # cat.write('/data2/home2/nguerrav/Catalogues/test_set_cat_not_in_golden_sample_SNR_3_with_MgII.fits', format='fits', overwrite=True)
+    save_to_fits(cat, '/data2/home2/nguerrav/Catalogues/test_set_cat_not_in_golden_sample_SNR_3_with_MgII.fits')
+
+    # print(f"Finished inserting MgII absorbers in {N_targets} QSO templates in {dt.total_seconds():.1f} seconds")
 
 if __name__ == '__main__':
     main()

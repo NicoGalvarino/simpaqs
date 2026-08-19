@@ -16,6 +16,7 @@ import os
 import sys
 import datetime
 import pandas as pd
+from multiprocessing import Pool, cpu_count
 import warnings
 warnings.filterwarnings('ignore', message='invalid value encountered in divide', category=RuntimeWarning)
 # warnings.filterwarnings('default')
@@ -45,20 +46,31 @@ def update_header(hdu_list, target, prog_id='4MOST-ETC'):
     hdu_list[0].header['PROG_ID'] = prog_id
     hdu_list[0].header['MJD-OBS'] = Time.now().mjd
     hdu_list[0].header['MJD-END'] = Time.now().mjd
-    hdu_list[0].header['OBJ_UID'] = hash(target['NAME'])
-    hdu_list[0].header['OBJ_NME'] = target['NAME']
-    hdu_list[1].header['OBJ_UID'] = hash(target['NAME'])
-    hdu_list[1].header['OBJ_NME'] = target['NAME']
-    hdu_list[0].header['TRG_UID'] = hash(target['NAME'])
-    hdu_list[0].header['TRG_NME'] = target['NAME']
-    hdu_list[1].header['TRG_UID'] = hash(target['NAME'])
-    hdu_list[1].header['TRG_NME'] = target['NAME']
+    try:
+        hdu_list[0].header['OBJ_UID'] = hash(target['NAME'])
+        hdu_list[0].header['OBJ_NME'] = target['NAME']
+        hdu_list[1].header['OBJ_UID'] = hash(target['NAME'])
+        hdu_list[1].header['OBJ_NME'] = target['NAME']
+        hdu_list[0].header['TRG_UID'] = hash(target['NAME'])
+        hdu_list[0].header['TRG_NME'] = target['NAME']
+        hdu_list[1].header['TRG_UID'] = hash(target['NAME'])
+        hdu_list[1].header['TRG_NME'] = target['NAME']
+    except:
+        hdu_list[0].header['OBJ_UID'] = hash(target['TEMPLATE'])
+        hdu_list[0].header['OBJ_NME'] = target['TEMPLATE']
+        hdu_list[1].header['OBJ_UID'] = hash(target['TEMPLATE'])
+        hdu_list[1].header['OBJ_NME'] = target['TEMPLATE']
+        hdu_list[0].header['TRG_UID'] = hash(target['TEMPLATE'])
+        hdu_list[0].header['TRG_NME'] = target['TEMPLATE']
+        hdu_list[1].header['TRG_UID'] = hash(target['TEMPLATE'])
+        hdu_list[1].header['TRG_NME'] = target['TEMPLATE']
     hdu_list[1].header['TRG_MAG'] = target['MAG']
     hdu_list[0].header['SPECUID'] = specuid
     hdu_list[1].header['SPECUID'] = specuid
     hdu_list[1].header['TRG_Z'] = target['REDSHIFT_ESTIMATE']
-    # hdu_list[1].header['TRG_TMP'] = os.path.basename(target['TEMPLATE'])
-    hdu_list[1].header['TRG_TMP'] = os.path.basename(target['TEMPLATE_with_MgII'])
+    # hdu_list[1].header['TRG_Z'] = target['redshift']
+    # hdu_list[1].header['TRG_TMP'] = os.path.basename(target['TEMPLATE_with_MgII'])
+    hdu_list[1].header['TRG_TMP'] = os.path.basename(target['TEMPLATE'])
     return hdu_list
 
 
@@ -94,13 +106,19 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
     for num, row in enumerate(catalog, 1):
 
         z_str = str(np.round(row['REDSHIFT_ESTIMATE'], 4))
+        # z_str = str(np.round(row['redshift'], 4))
         mag_str = str(np.round(row['MAG'], 2))
         ruleset_name = row['RULESET']
-        target_name = row['NAME']
-        model_id = f'QSO_sim_ETC_z{z_str}_mag{mag_str}_{target_name}'
+        target_name = row['TEMPLATE'][:-5]  # row['NAME']
+        # print(target_name)
+        # model_id = f'QSO_sim_ETC_z{z_str}_mag{mag_str}_{target_name}'
+        model_id = f'{target_name}'
         # print(model_id, '\n')
-        output = os.path.join(output_dir, f"{model_id}_LJ1.fits")
+        output = os.path.join(output_dir, f"{model_id}_ETC_LJ1.fits")
+        # output = os.path.join(output_dir, f"{model_id}_LJ1.fits")
+        # output = os.path.join(output_dir, f"{model_id}_LJ1_MgII.fits")
 
+        # if os.path.exists(output) or len(row['TEMPLATE_with_MgII']) < 10:
         if os.path.exists(output):
             pass  # spectrum already simulated
 
@@ -109,14 +127,31 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
             seeing = row['SEEING']
             airmass = row['AIRMASS']
 
+            # print(row['TEMPLATE'])
+
             alt = np.arccos(1. / airmass) * 180 / np.pi * u.deg
             obs = qmost(alt, seeing*u.arcsec, moon)
 
             ruleset = rulesets[ruleset_name]
             etc = ruleset.etc(alt, seeing*u.arcsec, moon)
+            # template_fname = os.path.join(template_path, row['TEMPLATE_with_MgII'])
+            template_fname = os.path.join(template_path, row['TEMPLATE']+'.fits')
             # template_fname = os.path.join(template_path, row['TEMPLATE'])
-            template_fname = os.path.join(template_path, row['TEMPLATE_with_MgII'])
+            
+            # try:
             SED = SEDTemplate(template_fname)
+            # except:
+            #     # warning_msg = f"Skipping QSO {template_fname}"
+            #     # print(warning_msg)
+            #     # print(template_wave_min, template_wave_max)
+            #     # warning_file = os.path.join('./', 'simulate_catalog_warnings.log')
+            #     # with open(warning_file, 'a') as f:
+            #     #     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            #     #     f.write(f"[{timestamp}] Target: {target_name}, z={row['REDSHIFT_ESTIMATE']}, MAG={row['MAG']}, fobs={row['fobs']}, {warning_msg}\n")
+            #     # warning_target_list_file = os.path.join('./', 'simulate_catalog_warnings_skipped_target_list.log')
+            #     # with open(warning_target_list_file, 'a') as f:
+            #     #     f.write(f"{target_name}\n")
+            #     pass
 
             template_wave_min = SED.wavelength.min().value
             template_wave_max = SED.wavelength.max().value
@@ -128,6 +163,7 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
                 with open(warning_file, 'a') as f:
                     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     f.write(f"[{timestamp}] Target: {target_name}, z={row['REDSHIFT_ESTIMATE']}, MAG={row['MAG']}, fobs={row['fobs']}, {warning_msg}\n")
+                    # f.write(f"[{timestamp}] Target: {target_name}, z={row['redshift']}, MAG={row['MAG']}, fobs={row['fobs']}, {warning_msg}\n")
                 warning_target_list_file = os.path.join('./', 'simulate_catalog_warnings_target_list.log')
                 with open(warning_target_list_file, 'a') as f:
                     f.write(f"{target_name}\n")
@@ -162,23 +198,28 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
             if 'fobs' in catalog.colnames:
 
                 texp_fobs = row['fobs'] * texp
-                exptime_log.append({'NAME': target_name, 'MAG': row['MAG'],
+                exptime_log.append({#'NAME': target_name, 
+                                    'MAG': row['MAG'],
                                 'TEXP': texp, 'fobs':row['fobs'], 'TEXP_fobs':texp_fobs, 
                                 'REDSHIFT': row['REDSHIFT_ESTIMATE'], 
+                                # 'REDSHIFT': row['redshift'], 
                                 'SUBSURVEY': row['SUBSURVEY'], 'SEEING': seeing, 'AIRMASS': airmass})
             else:
-                exptime_log.append({'NAME': target_name, 'MAG': row['MAG'],
+                texp_fobs = texp
+                exptime_log.append({#'NAME': target_name, 
+                                    'MAG': row['MAG'],
                                 'TEXP': texp, 
                                 'REDSHIFT': row['REDSHIFT_ESTIMATE'], 
+                                # 'REDSHIFT': row['redshift'], 
                                 'SUBSURVEY': row['SUBSURVEY'], 'SEEING': seeing, 'AIRMASS': airmass})
 
-            res = obs.expose(texp)  # 'wavelength', 'binwidth', 'efficiency', 'gain', , 'target', 'sky', 'dark', 'ron', 'noise'
+            res = obs.expose(texp_fobs)  # 'wavelength', 'binwidth', 'efficiency', 'gain', , 'target', 'sky', 'dark', 'ron', 'noise'
 
             # if np.isnan(res['target']).any():
             #     res['target'][np.isnan(res['target'])] = 0.
             # if np.isnan(res['sky']).any():
             #     res['sky'][np.isnan(res['sky'])] = 0.
-            res = obs.expose(texp)
+            # res = obs.expose(texp)
 
             flux_floor = 1e-25  # Very small positive value
             if np.isnan(res['target']).any():
@@ -190,6 +231,7 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
                 with open(warning_file, 'a') as f:
                     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     f.write(f"[{timestamp}] Target: {target_name}, z={row['REDSHIFT_ESTIMATE']}, MAG={row['MAG']}, fobs={row['fobs']}, {warning_msg}\n")
+                    # f.write(f"[{timestamp}] Target: {target_name}, z={row['redshift']}, MAG={row['MAG']}, fobs={row['fobs']}, {warning_msg}\n")
 
                 warning_target_list_file = os.path.join('./', 'simulate_catalog_warnings_target_list.log')
                 with open(warning_target_list_file, 'a') as f:
@@ -204,6 +246,7 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
                 with open(warning_file, 'a') as f:
                     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     f.write(f"[{timestamp}] Target: {target_name}, z={row['REDSHIFT_ESTIMATE']}, MAG={row['MAG']}, fobs={row['fobs']}, {warning_msg}\n")
+                    # f.write(f"[{timestamp}] Target: {target_name}, z={row['redshift']}, MAG={row['MAG']}, fobs={row['fobs']}, {warning_msg}\n")
 
                 warning_target_list_file = os.path.join('./', 'simulate_catalog_warnings_target_list.log')
                 with open(warning_target_list_file, 'a') as f:
@@ -219,6 +262,7 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
                 with open(warning_file, 'a') as f:
                     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     f.write(f"[{timestamp}] Target: {target_name}, z={row['REDSHIFT_ESTIMATE']}, MAG={row['MAG']}, fobs={row['fobs']}, {warning_msg}\n")
+                    # f.write(f"[{timestamp}] Target: {target_name}, z={row['redshift']}, MAG={row['MAG']}, fobs={row['fobs']}, {warning_msg}\n")
             
                 warning_target_list_file = os.path.join('./', 'simulate_catalog_warnings_target_list.log')
                 with open(warning_target_list_file, 'a') as f:
@@ -234,6 +278,7 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
                 with open(warning_file, 'a') as f:
                     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     f.write(f"[{timestamp}] Target: {target_name}, z={row['REDSHIFT_ESTIMATE']}, MAG={row['MAG']}, fobs={row['fobs']}, {warning_msg}\n")
+                    # f.write(f"[{timestamp}] Target: {target_name}, z={row['redshift']}, MAG={row['MAG']}, fobs={row['fobs']}, {warning_msg}\n")
 
                 warning_target_list_file = os.path.join('./', 'simulate_catalog_warnings_target_list.log')
                 with open(warning_target_list_file, 'a') as f:
@@ -241,75 +286,53 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
 
             # Add cosmic rays:
             N_pix = len(res)
-            N_cosmic = np.random.poisson(CR_rate * texp.value * N_pix * 0.8)
+            N_cosmic = np.random.poisson(CR_rate * texp_fobs.value * N_pix * 0.8)
             idx = np.random.choice(np.arange(N_pix), N_cosmic, replace=False)
             CR_boost = 10**np.random.normal(2.0, 0.15, N_cosmic) * u.electron
             res['target'][idx] += CR_boost
             res['noise'][idx] = np.sqrt(res['noise'][idx]**2 + CR_boost * u.electron)
 
-            dxu = L1DXU(qmost, res, texp)
-
-            # Write individual L1 files
-            # if l1_type[0].upper() == 'A':
-            #     for arm_name in qmost.keys():
-            #         INST = 'L' if spectrograph == 'lrs' else 'H'
-            #         INST += arm_name.upper()[0]
-            #         # INST += '1'
-
-            #         z_str = str(np.round(row['REDSHIFT_ESTIMATE'], 4))
-            #         model_id = f'QSO_sim_ETC_z{z_str}_{target_name}'
-            #         output_arm = os.path.join(output_dir, f'{model_id}_{INST}.fits')  # saves fluxin ADU
-            #         try:
-            #             hdu_list = dxu.per_arm(arm_name)
-            #             hdu_list = update_header(hdu_list, row)
-            #             hdu_list.writeto(output_arm, overwrite=True)
-            #         except ValueError as e:
-            #             print(f"Failed to save the spectrum: {row['TEMPLATE']}")
-            #             print(f"for arm: {arm_name}")
-
-            # if spectrograph.lower() == 'lrs':
-            # Create JOINED L1 SPECTRUM:
-
-            # try:
-            hdu_list = dxu.joined()
-            
-            # Set flux floor and clean up data
-            flux_floor = 1e-25
-            flux_data = hdu_list[1].data['FLUX']
-            err_data = hdu_list[1].data['ERR_FLUX']
-            
-            # Count issues before fixing
-            n_negative = np.sum(flux_data < 0)
-            n_zero = np.sum(flux_data == 0)
-            n_nan_flux = np.sum(np.isnan(flux_data))
-            n_nan_err = np.sum(~np.isfinite(err_data))
-            
-            # if n_negative + n_zero + n_nan_flux + n_nan_err > 0:
-            #     print(f"Cleaning spectrum {model_id}: {n_negative} negative, {n_zero} zero, {n_nan_flux} NaN flux, {n_nan_err} bad errors")
-            
-            # Fix flux issues
-            bad_flux_mask = (flux_data <= 0) | np.isnan(flux_data)
-            flux_data[bad_flux_mask] = flux_floor
-            
-            # Fix error issues
-            bad_err_mask = ~np.isfinite(err_data) | (err_data <= 0)
-            err_data[bad_err_mask] = np.sqrt(flux_floor) * 10  # Conservative error
-            
-            # Update HDU data
-            hdu_list[1].data['FLUX'] = flux_data
-            hdu_list[1].data['ERR_FLUX'] = err_data
-            
-            hdu_list = update_header(hdu_list, row, prog_id)
-            hdu_list.writeto(output, overwrite=True)
+            try:
+                dxu = L1DXU(qmost, res, texp_fobs)
+                hdu_list = dxu.joined()
                 
-            # except (IndexError, ValueError) as e:
-            #     error_file = os.path.join(output_dir, 'failed_spectra.txt')
-            #     error_message = f"Failed to save spectrum for {model_id}: {str(e)}"
-            #     with open(error_file, 'a') as f:
-            #         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            #         f.write(f"[{timestamp}] {error_message}\n")
-            #     print(error_message)
-            #     continue  # Skip to next target
+                # Set flux floor and clean up data
+                flux_floor = 1e-25
+                flux_data = hdu_list[1].data['FLUX']
+                err_data = hdu_list[1].data['ERR_FLUX']
+                
+                # Count issues before fixing
+                n_negative = np.sum(flux_data < 0)
+                n_zero = np.sum(flux_data == 0)
+                n_nan_flux = np.sum(np.isnan(flux_data))
+                n_nan_err = np.sum(~np.isfinite(err_data))
+                
+                # if n_negative + n_zero + n_nan_flux + n_nan_err > 0:
+                #     print(f"Cleaning spectrum {model_id}: {n_negative} negative, {n_zero} zero, {n_nan_flux} NaN flux, {n_nan_err} bad errors")
+                
+                # Fix flux issues
+                bad_flux_mask = (flux_data <= 0) | np.isnan(flux_data)
+                flux_data[bad_flux_mask] = flux_floor
+                
+                # Fix error issues
+                bad_err_mask = ~np.isfinite(err_data) | (err_data <= 0)
+                err_data[bad_err_mask] = np.sqrt(flux_floor) * 10  # Conservative error
+                
+                # Update HDU data
+                hdu_list[1].data['FLUX'] = flux_data
+                hdu_list[1].data['ERR_FLUX'] = err_data
+                
+                hdu_list = update_header(hdu_list, row, prog_id)
+                hdu_list.writeto(output, overwrite=True)
+            
+            except (IndexError, ValueError) as e:
+                error_file = os.path.join(output_dir, 'failed_spectra.txt')
+                error_message = f"Failed to save spectrum for {model_id}: {str(e)}"
+                with open(error_file, 'a') as f:
+                    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    f.write(f"[{timestamp}] {error_message}\n")
+                print(error_message)
+                continue  # Skip to next target
 
             # hdu_list = dxu.joined()
             # hdu_list = update_header(hdu_list, row, prog_id)
@@ -344,26 +367,43 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
     exptimes['TEXP'] = exptimes['TEXP'].round(1)
     exptimes['MAG'] = exptimes['MAG'].round(2)
     exptimes['REDSHIFT'] = exptimes['REDSHIFT'].round(4)
+    # exptimes['redshift'] = exptimes['redshift'].round(4)
     if 'TEXP_fobs' in exptimes.columns:
         exptimes['TEXP_fobs'] = exptimes['TEXP_fobs'].round(1)
     exptimes.to_csv(log_fname, index=False)
     print(' ')
 
-
+def process_chunk_wrapper(chunk_data):
+    """Helper function to process a single chunk of catalog data"""
+    chunk_cat, ruleset_fname, rules_fname, output_dir, template_path, moon, prog_id, chunk_idx, num_chunks, start_idx, end_idx = chunk_data
+    
+    print(f"\nProcessing chunk {chunk_idx+1}/{num_chunks} (QSOs {start_idx+1}-{end_idx})")
+    
+    process_catalog(chunk_cat,
+                    ruleset_fname=ruleset_fname,
+                    rules_fname=rules_fname,
+                    output_dir=output_dir,
+                    template_path=template_path,
+                    moon=moon,
+                    N_targets=len(chunk_cat),
+                    prog_id=prog_id)
+    
+    return f"Chunk {chunk_idx+1}/{num_chunks} completed"
 
 def main():
     parser = ArgumentParser(description="Generate simulated spectra from 4MOST Target Catalog")
-    # parser.add_argument("input", type=str, help="input target FITS catalog", 
-    #                     # default='/data2/home2/nguerrav/QSO_simpaqs/ByCycle_Final_Cat_qso_templates_fobs_notna.fits'
-    #                     )
+    parser.add_argument("--input_cat", type=str, help="input target FITS catalog", 
+                        default='/data2/home2/nguerrav/Catalogues/qselfie_682/ByCycle_Final_cat_with_qselfie_682_with_SNR_training_labels.fits'
+                        )
     parser.add_argument('--airmass', type=float, default=1.2)
     parser.add_argument('--moon', type=str, default='gray', choices=['dark', 'gray', 'bright'])
     parser.add_argument('--seeing', type=float, default=0.8)
     parser.add_argument('-n', '--number', type=int, default=None)
     parser.add_argument('--rules', type=str, default='./../S17_20250122T1441Z_rules.csv', help='Rules definition (FITS or CSV)')
     parser.add_argument('--ruleset', type=str, default='./../S17_20250122T1443Z_rulesets.csv', help='Ruleset definition (FITS or CSV)')
-    parser.add_argument('--temp-dir', type=str, default='/data2/home2/nguerrav/QSO_simpaqs/QSOs_full_cat_with_absorbers_in_blue_arm/', help='Directory of spectral templates')
-    parser.add_argument("-o", "--output", type=str, default='/data2/home2/nguerrav/QSO_simpaqs/QSOs_full_cat_with_absorbers_in_blue_arm_ETC_L1_output_with_fobs/', help="output directory")
+    parser.add_argument('--temp-dir', type=str, default='/data2/home2/nguerrav/QSO_simpaqs/QSOs_full_cat/', help='Directory of spectral templates')
+    parser.add_argument("-o", "--output", type=str, default='/data2/home2/nguerrav/QSO_simpaqs/QSOs_L1_output_with_fobs_sim682/', help="output directory")
+    parser.add_argument('--n-cores', type=int, default=None, help='Number of CPU cores to use for parallel processing (default: 75% of available cores)')
     # parser.add_argument('--arm', type=str, default='ALL', choices=['J', 'joined', 'ALL', 'a'])
     parser.add_argument('--prog', type=str, default='4MOST-ETC',
                         help="Determines the PROG_ID header keyword")
@@ -371,8 +411,12 @@ def main():
     args = parser.parse_args()
 
     t1 = datetime.datetime.now()
-    catalog = Table.read('/data2/home2/nguerrav/Catalogues/test_set_cat_not_in_golden_sample_with_MgII.fits')
-    catalog = catalog[catalog['SNR_mean'] < 0.0]
+    catalog = Table.read(args.input_cat)
+    print(catalog.columns)
+    print(len(catalog))
+
+    catalog['RULESET'] = 'Fixed_BG_NOISE_0p33hr_Rulesets'
+    # catalog.rename_column('redshift', 'REDSHIFT_ESTIMATE')
 
     if args.number is not None:
         N_targets = args.number
@@ -382,33 +426,35 @@ def main():
         N_targets = len(catalog)
 
     if N_targets > 50000:
-        # Process in chunks to manage memory
+        # Process in chunks using parallel processing
         chunk_size = 10000
         num_chunks = (N_targets + chunk_size - 1) // chunk_size
         
+        chunk_data_list = []
         for chunk_idx in range(num_chunks):
             start_idx = chunk_idx * chunk_size
             end_idx = min((chunk_idx + 1) * chunk_size, N_targets)
-
-            print(f"\nProcessing chunk {chunk_idx+1}/{num_chunks} (QSOs {start_idx+1}-{end_idx})")
-            
             chunk_cat = catalog[start_idx:end_idx]
-
-            process_catalog(chunk_cat,
-                            ruleset_fname=args.ruleset,
-                            rules_fname=args.rules,
-                            output_dir=args.output,
-                            template_path=args.temp_dir,
-                            # airmass=args.airmass,
-                            # seeing=args.seeing,
-                            moon=args.moon,
-                            # l1_type=args.arm,
-                            N_targets=N_targets,
-                            prog_id=args.prog,
-                            )
+            
+            chunk_data = (chunk_cat, args.ruleset, args.rules, args.output, 
+                         args.temp_dir, args.moon, args.prog, 
+                         chunk_idx, num_chunks, start_idx, end_idx)
+            chunk_data_list.append(chunk_data)
+        
+        if args.n_cores is not None:
+            n_cores = max(1, args.n_cores)
+        else:
+            n_cores = max(1, int(cpu_count() * 0.75))
+        print(f"Processing {num_chunks} chunks using {n_cores} CPU cores")
+        
+        with Pool(processes=n_cores) as pool:
+            results = pool.map(process_chunk_wrapper, chunk_data_list)
+        
+        print("All chunks completed successfully!")
+        for result in results:
+            print(result)
 
     else:
-
         process_catalog(catalog,
                 ruleset_fname=args.ruleset,
                 rules_fname=args.rules,
