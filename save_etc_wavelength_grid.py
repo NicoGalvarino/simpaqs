@@ -8,6 +8,8 @@ import numpy as np
 from astropy.table import Table
 import astropy.units as u
 
+from fits_utils import *
+
 from qmostetc import SEDTemplate, QMostObservatory, Spectrum, L1DXU
 from qmostetc.catalog import _split_magtype as split_magtype
 
@@ -34,6 +36,7 @@ tbl = obs.expose((5*60*60)*u.s)
 #         allow_pickle=True)
 
 tbl.write('./../pre_L1_spectrum.fits', overwrite=True)
+
 
 dxu = L1DXU(qmost, tbl, (5*60*60)*u.s)
 hdu_list = dxu.joined()
