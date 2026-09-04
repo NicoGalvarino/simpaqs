@@ -41,4 +41,6 @@ tbl.write('./../pre_L1_spectrum.fits', overwrite=True)
 dxu = L1DXU(qmost, tbl, (5*60*60)*u.s)
 hdu_list = dxu.joined()
 
-hdu_list.writeto('./../L1_spectrum.fits', overwrite=True)
+np.save('npy_files/etc_wavelength_grid.npy', 
+        np.asarray(tbl['wavelength']) * 10,  # in angstroms
+        allow_pickle=True)

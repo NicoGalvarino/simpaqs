@@ -17,6 +17,7 @@ import sys
 import datetime
 import pandas as pd
 from multiprocessing import Pool, cpu_count
+import glob
 import warnings
 warnings.filterwarnings('ignore', message='invalid value encountered in divide', category=RuntimeWarning)
 # warnings.filterwarnings('default')
@@ -79,8 +80,8 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
                     # airmass=1.2,  # 1.0 - 1.5
                     # seeing=0.8,  # 0.4 - 1.5
                     moon='gray',
-                    CR_rate=1.67e-7, #l1_type='joined', 
-                    N_targets=None,
+                    CR_rate=1.67e-7, #l1_type='joined',
+                    N_targets=None, chunk_idx=None,
                     prog_id='4MOST-ETC', t_min=20*u.min, t_max=1e9*u.min):
 
     if not os.path.exists(output_dir):
@@ -109,7 +110,7 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
         # z_str = str(np.round(row['redshift'], 4))
         mag_str = str(np.round(row['MAG'], 2))
         ruleset_name = row['RULESET']
-        target_name = row['TEMPLATE'][:-5]  # row['NAME']
+        target_name = row['TEMPLATE']
         # print(target_name)
         # model_id = f'QSO_sim_ETC_z{z_str}_mag{mag_str}_{target_name}'
         model_id = f'{target_name}'
@@ -120,7 +121,39 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
 
         # if os.path.exists(output) or len(row['TEMPLATE_with_MgII']) < 10:
         if os.path.exists(output):
-            pass  # spectrum already simulated
+            # Spectrum already on disk — reconstruct exptime_log entry from catalog row
+            # without re-running the ETC or spectrum simulation.
+            if 'fobs' in catalog.colnames:
+                if row['fobs'] <= 0:
+                    continue
+                texp_col = 'texp_' + moon[0]
+                texp = row[texp_col] * u.min if texp_col in catalog.colnames else t_min
+                if texp < t_min:
+                    texp = t_min
+                if texp > t_max:
+                    texp = t_max
+                texp_fobs = row['fobs'] * texp
+                exptime_log.append({
+                    'MAG': row['MAG'],
+                    'TEXP': float(texp.to(u.min).value),
+                    'fobs': row['fobs'],
+                    'TEXP_fobs': float(texp_fobs.to(u.min).value),
+                    'REDSHIFT': row['REDSHIFT_ESTIMATE'],
+                    'SUBSURVEY': row['SUBSURVEY'],
+                    'SEEING': row['SEEING'], 'AIRMASS': row['AIRMASS']})
+            else:
+                texp_col = 'texp_' + moon[0]
+                texp = row[texp_col] * u.min if texp_col in catalog.colnames else t_min
+                if texp < t_min:
+                    texp = t_min
+                if texp > t_max:
+                    texp = t_max
+                exptime_log.append({
+                    'MAG': row['MAG'],
+                    'TEXP': float(texp.to(u.min).value),
+                    'REDSHIFT': row['REDSHIFT_ESTIMATE'],
+                    'SUBSURVEY': row['SUBSURVEY'],
+                    'SEEING': row['SEEING'], 'AIRMASS': row['AIRMASS']})
 
         else:
             row['MOON'] = moon
@@ -197,23 +230,34 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
 
             if 'fobs' in catalog.colnames:
 
+                if row['fobs'] <= 0:
+                    error_file = os.path.join(output_dir, 'failed_spectra.txt')
+                    with open(error_file, 'a') as f:
+                        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        f.write(f"[{timestamp}] Skipped {model_id}: fobs=0\n")
+                    continue
+
                 texp_fobs = row['fobs'] * texp
-                exptime_log.append({#'NAME': target_name, 
+                exptime_log.append({#'NAME': target_name,
                                     'MAG': row['MAG'],
-                                'TEXP': texp, 'fobs':row['fobs'], 'TEXP_fobs':texp_fobs, 
-                                'REDSHIFT': row['REDSHIFT_ESTIMATE'], 
-                                # 'REDSHIFT': row['redshift'], 
+                                'TEXP': float(texp.to(u.min).value),
+                                'fobs': row['fobs'],
+                                'TEXP_fobs': float(texp_fobs.to(u.min).value),
+                                'REDSHIFT': row['REDSHIFT_ESTIMATE'],
+                                # 'REDSHIFT': row['redshift'],
                                 'SUBSURVEY': row['SUBSURVEY'], 'SEEING': seeing, 'AIRMASS': airmass})
             else:
                 texp_fobs = texp
-                exptime_log.append({#'NAME': target_name, 
+                exptime_log.append({#'NAME': target_name,
                                     'MAG': row['MAG'],
-                                'TEXP': texp, 
-                                'REDSHIFT': row['REDSHIFT_ESTIMATE'], 
-                                # 'REDSHIFT': row['redshift'], 
+                                'TEXP': float(texp.to(u.min).value),
+                                'REDSHIFT': row['REDSHIFT_ESTIMATE'],
+                                # 'REDSHIFT': row['redshift'],
                                 'SUBSURVEY': row['SUBSURVEY'], 'SEEING': seeing, 'AIRMASS': airmass})
 
-            res = obs.expose(texp_fobs)  # 'wavelength', 'binwidth', 'efficiency', 'gain', , 'target', 'sky', 'dark', 'ron', 'noise'
+            single_exp = 20 * u.min
+            nexp = max(1, int(np.ceil((texp_fobs.to(u.min) / single_exp).value)))
+            res = obs.expose(texp_fobs, nexp=nexp)  # 'wavelength', 'binwidth', 'efficiency', 'gain', , 'target', 'sky', 'dark', 'ron', 'noise'
 
             # if np.isnan(res['target']).any():
             #     res['target'][np.isnan(res['target'])] = 0.
@@ -323,7 +367,7 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
                 hdu_list[1].data['ERR_FLUX'] = err_data
                 
                 hdu_list = update_header(hdu_list, row, prog_id)
-                hdu_list.writeto(output, overwrite=True)
+                hdu_list.writeto(output, overwrite=False)
             
             except (IndexError, ValueError) as e:
                 error_file = os.path.join(output_dir, 'failed_spectra.txt')
@@ -344,32 +388,22 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
         sys.stdout.flush()
     # exptimes = Table(exptime_log)
     exptimes = pd.DataFrame(exptime_log)
-    # exptimes.meta['comments'] = ['Exposure times in seconds']
-    log_fname = os.path.join(output_dir, 'exposure_times.csv')
-    # print('type(exptime_log):', type(exptime_log))
-    # print('exptime_log:', exptime_log)
-    # print(exptimes)
-    
-    if os.path.exists(log_fname):
-        exptimes_prev = pd.read_csv(log_fname)  # Table.read(log_fname)
-        # exptimes = vstack([exptimes_prev, exptimes])
-        exptimes = pd.concat([exptimes_prev, exptimes], axis=0, ignore_index=True)
-    else:
-        # exptimes = exptimes.data
-        pass
+    if len(exptimes) == 0:
+        return
 
-    # with warnings.catch_warnings():
-    #     warnings.simplefilter("ignore")
-    #     exptimes.write(log_fname,
-    #                formats={'TEXP': '%.1f', 'TEXP_fobs': '%.1f', 
-    #                         'MAG': '%.2f', 'REDSHIFT': '%.4f'},
-    #                overwrite=True, comment='# ', format='csv')
     exptimes['TEXP'] = exptimes['TEXP'].round(1)
     exptimes['MAG'] = exptimes['MAG'].round(2)
     exptimes['REDSHIFT'] = exptimes['REDSHIFT'].round(4)
-    # exptimes['redshift'] = exptimes['redshift'].round(4)
     if 'TEXP_fobs' in exptimes.columns:
         exptimes['TEXP_fobs'] = exptimes['TEXP_fobs'].round(1)
+
+    if chunk_idx is not None:
+        log_fname = os.path.join(output_dir, f'exposure_times_chunk_{chunk_idx:04d}.csv')
+    else:
+        log_fname = os.path.join(output_dir, 'exposure_times.csv')
+        if os.path.exists(log_fname):
+            exptimes_prev = pd.read_csv(log_fname)
+            exptimes = pd.concat([exptimes_prev, exptimes], axis=0, ignore_index=True)
     exptimes.to_csv(log_fname, index=False)
     print(' ')
 
@@ -386,6 +420,7 @@ def process_chunk_wrapper(chunk_data):
                     template_path=template_path,
                     moon=moon,
                     N_targets=len(chunk_cat),
+                    chunk_idx=chunk_idx,
                     prog_id=prog_id)
     
     return f"Chunk {chunk_idx+1}/{num_chunks} completed"
@@ -453,6 +488,14 @@ def main():
         print("All chunks completed successfully!")
         for result in results:
             print(result)
+
+        chunk_csvs = sorted(glob.glob(os.path.join(args.output, 'exposure_times_chunk_*.csv')))
+        if chunk_csvs:
+            merged = pd.concat([pd.read_csv(f) for f in chunk_csvs], ignore_index=True)
+            merged.to_csv(os.path.join(args.output, 'exposure_times.csv'), index=False)
+            for f in chunk_csvs:
+                os.remove(f)
+            print(f"Merged {len(chunk_csvs)} chunk CSVs into exposure_times.csv ({len(merged)} rows)")
 
     else:
         process_catalog(catalog,
