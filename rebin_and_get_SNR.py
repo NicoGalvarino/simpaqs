@@ -211,21 +211,21 @@ def main():
     parser.add_argument('-n', '--number', type=int, default=None, help='Number of targets to process')
     parser.add_argument('--n-cores', type=int, default=None, help='Number of CPU cores (default: 75% of available)')
     parser.add_argument('--batch-size', type=int, default=100, help='Batch size for processing (default: 100)')
-    parser.add_argument('--input-cat', type=str, default='ByCycle_Final_cat_with_qselfie_682.fits', 
+    parser.add_argument('--input-cat', type=str, default='ByCycle_Final_cat_with_qselfie_682_with_SNR_training_labels.fits', 
                        help='Input catalog filename')
-    parser.add_argument('--output-cat', type=str, default='ByCycle_Final_cat_with_qselfie_682_with_SNR.fits',
+    parser.add_argument('--output-cat', type=str, default='ByCycle_Final_cat_with_qselfie_682_with_SNR_nexp.fits',
                        help='Output catalog filename')
     parser.add_argument('--cat-path', type=str, 
-                       default='/data2/home2/nguerrav/Catalogues/cat_april15/',
+                       default='/data2/home2/nguerrav/Catalogues/qselfie_682/',
                        help='Path to catalog directory')
     parser.add_argument('--l1-spec-path', type=str,
-                       default='/data2/home2/nguerrav/QSO_simpaqs/QSOs_L1_output_with_fobs_sim682/',
+                       default='/data2/home2/nguerrav/QSO_simpaqs/QSOs_L1_output_with_fobs_sim682_nexp/',
                        help='Path to L1 spectra directory')
     parser.add_argument('--rebinned-spec-path', type=str,
-                       default='/data2/home2/nguerrav/QSO_simpaqs/QSOs_L1_output_with_fobs_sim682_rebinned/',
+                       default='/data2/home2/nguerrav/QSO_simpaqs/QSOs_L1_output_with_fobs_sim682_nexp_rebinned/',
                        help='Path to output rebinned spectra directory')
     parser.add_argument('--etc-grid-path', type=str,
-                       default='/data2/home2/nguerrav/QSO_simpaqs/npy_files/etc_wavelength_grid.npy',
+                       default='/data2/home2/nguerrav/QSO_simpaqs/npy_files/wavelen_grid_03ang.npy',
                        help='Path to ETC wavelength grid NPY file')
     
     args = parser.parse_args()
