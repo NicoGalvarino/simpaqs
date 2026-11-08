@@ -59,7 +59,7 @@ here = os.path.abspath(os.path.dirname(__file__))
 def simulate_quasars(nqso=None, expand_factor=1.0, z_list=None, names_list=None, z_range=(1.0, 4.5),
                      wavelen_grid=None, wave_range=(3000, 11000),
                      dust_mode='exponential', #BAL=False,
-                     output_dir='Users/lola/ASTRO/ESO/simpaqs/QSO_templates/',
+                     output_dir='/Volumes/T7_blu/4MOST_ByCycle/mock_data/QSO_templates/',
                      start_num=0,
                      aparent_mags=None, aparent_mag_errs=None, fobs=None, subsurveys=None):
     """
@@ -213,29 +213,25 @@ def simulate_quasars(nqso=None, expand_factor=1.0, z_list=None, names_list=None,
     qsos.data['log_Lbol'] = logL_bol
     qsos.data['abs_qso_mag'] = M_all
     qsos.data['EBV'] = Ebv_all
-    # qsos.data['MAG'] = aparent_mags
-    # qsos.data['MAG_ERR'] = aparent_mag_errs
-    # qsos.data['fobs'] = fobs
-    # qsos.data['SUBSURVEY'] = np.array(subsurveys, dtype='<U20') if subsurveys is not None else None
+    qsos.data['MAG'] = aparent_mags
+    qsos.data['MAG_ERR'] = aparent_mag_errs
+    qsos.data['fobs'] = fobs
+    qsos.data['SUBSURVEY'] = np.array(subsurveys, dtype='<U20') if subsurveys is not None else None
 
     if names_list is not None:
         qsos.data['NAME'] = names_list
-    
 
-    
-    
-    if os.path.exists(f'{output_dir}/golden_sample_expanded.fits'):
-        qsos_prev = Table.read(f'{output_dir}/golden_sample_expanded.fits')
+    if os.path.exists(f'{output_dir}/QSOs_data_ByCycle_Final_cat_with_qselfie_682.fits'):
+        qsos_prev = Table.read(f'{output_dir}/QSOs_data_ByCycle_Final_cat_with_qselfie_682.fits')
         qsos = vstack([qsos_prev, qsos.data])
     else:
         qsos = qsos.data
-    qsos.write(f'{output_dir}/golden_sample_expanded.fits', overwrite=True)
-    # qsos.write('/data2/home2/nguerrav/Catalogues/golden_sample_expanded.fits', overwrite=True)
+    qsos.write(f'{output_dir}/QSOs_data_ByCycle_Final_cat_with_qselfie_682.fits', overwrite=True)
 
 def main():
     from argparse import ArgumentParser
     parser = ArgumentParser('Simulate quasars without absorber templates')
-    parser.add_argument('--input_cat_path', type=str, default='data2/home2/nguerrav/Catalogues/ByCycle_Final_Cat_fobs_qso_templates_with_SNR_golden_label_QSO_props.fits')
+    parser.add_argument('--input_cat_path', type=str, default='/Volumes/T7_blu/4MOST_ByCycle/mock_data/ByCycle_Final_cat_with_qselfie_682.fits')
     parser.add_argument("--number", type=int, default=None,
                         help="Number of quasars to simulate [default=100]")
     parser.add_argument("--zlist", type=str, default=None,
@@ -352,7 +348,7 @@ def main():
     qso_name_to_id = dict(zip(model_params['NAME'], model_params['ID'] + '.fits'))
     cat['TEMPLATE'] = cat['NAME'].map(qso_name_to_id)
 
-    save_to_fits(cat, args.output_dir, 'ByCycle_Final_Cat_fobs_qso_templates.fits')
+    save_to_fits(cat, args.output_dir, 'ByCycle_Final_cat_with_qselfie_682_fobs_qso_templates.fits')
 
 if __name__ == '__main__':
     main()

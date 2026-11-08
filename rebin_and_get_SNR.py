@@ -69,8 +69,8 @@ def rebin_and_SNR_single(row):
     if rebinned_spec_file.exists():
         try:
             rebinned_spec = Table.read(rebinned_spec_file)
-            SNR_mean, SNR_blue_mean, SNR_green_mean, SNR_red_mean = get_SNR_fast(rebinned_spec)
-            return SNR_mean, SNR_blue_mean, SNR_green_mean, SNR_red_mean
+            SNR_median, SNR_blue_median, SNR_green_median, SNR_red_median = get_SNR_fast(rebinned_spec)
+            return SNR_median, SNR_blue_median, SNR_green_median, SNR_red_median
         except:
             # If reading fails, recreate the file
             pass
@@ -78,8 +78,8 @@ def rebin_and_SNR_single(row):
     # Rebin the spectrum
     try:
         rebinned_spec = rebin_spec_optimized(spec_filename)
-        SNR_mean, SNR_blue_mean, SNR_green_mean, SNR_red_mean = get_SNR_fast(rebinned_spec)
-        return SNR_mean, SNR_blue_mean, SNR_green_mean, SNR_red_mean
+        SNR_median, SNR_blue_median, SNR_green_median, SNR_red_median = get_SNR_fast(rebinned_spec)
+        return SNR_median, SNR_blue_median, SNR_green_median, SNR_red_median
     except Exception as e:
         print(f"Error processing {spec_filename}: {e}")
         return np.nan, np.nan, np.nan, np.nan
@@ -152,12 +152,12 @@ def get_SNR_fast(rebinned_spec):
     green_mask = arm_values == 'green'
     red_mask = arm_values == 'red'
     
-    SNR_blue_mean = np.nanmean(snr_values[blue_mask]) if np.any(blue_mask) else np.nan
-    SNR_green_mean = np.nanmean(snr_values[green_mask]) if np.any(green_mask) else np.nan
-    SNR_red_mean = np.nanmean(snr_values[red_mask]) if np.any(red_mask) else np.nan
-    SNR_mean = np.nanmean(snr_values)
+    SNR_blue_median = np.nanmedian(snr_values[blue_mask]) if np.any(blue_mask) else np.nan
+    SNR_green_median = np.nanmedian(snr_values[green_mask]) if np.any(green_mask) else np.nan
+    SNR_red_median = np.nanmedian(snr_values[red_mask]) if np.any(red_mask) else np.nan
+    SNR_median = np.nanmedian(snr_values)
     
-    return SNR_mean, SNR_blue_mean, SNR_green_mean, SNR_red_mean
+    return SNR_median, SNR_blue_median, SNR_green_median, SNR_red_median
 
 def process_catalog_parallel(cat, n_cores=None, batch_size=100):
     """Process catalog using multiprocessing with batching"""
@@ -191,18 +191,18 @@ def process_catalog_parallel(cat, n_cores=None, batch_size=100):
     # Update catalog
     for idx in cat.index:
         if idx in all_results:
-            snr_mean, snr_blue, snr_green, snr_red = all_results[idx]
-            # cat.loc[idx, 'SNR_mean'] = snr_mean
-            # cat.loc[idx, 'SNR_blue_mean'] = snr_blue
-            # cat.loc[idx, 'SNR_green_mean'] = snr_green
-            # cat.loc[idx, 'SNR_red_mean'] = snr_red
-            cat.loc[idx, 'SNR_mean_mgii'] = snr_mean
-            cat.loc[idx, 'SNR_blue_mean_mgii'] = snr_blue
-            cat.loc[idx, 'SNR_green_mean_mgii'] = snr_green
-            cat.loc[idx, 'SNR_red_mean_mgii'] = snr_red
+            snr_median, snr_blue, snr_green, snr_red = all_results[idx]
+            cat.loc[idx, 'SNR_median'] = snr_median
+            cat.loc[idx, 'SNR_blue_median'] = snr_blue
+            cat.loc[idx, 'SNR_green_median'] = snr_green
+            cat.loc[idx, 'SNR_red_median'] = snr_red
+            # cat.loc[idx, 'SNR_median_mgii'] = snr_median
+            # cat.loc[idx, 'SNR_blue_median_mgii'] = snr_blue
+            # cat.loc[idx, 'SNR_green_median_mgii'] = snr_green
+            # cat.loc[idx, 'SNR_red_median_mgii'] = snr_red
         else:
-            # cat.loc[idx, ['SNR_mean', 'SNR_blue_mean', 'SNR_green_mean', 'SNR_red_mean']] = np.nan
-            cat.loc[idx, ['SNR_mean_mgii', 'SNR_blue_mean_mgii', 'SNR_green_mean_mgii', 'SNR_red_mean_mgii']] = np.nan
+            cat.loc[idx, ['SNR_median', 'SNR_blue_median', 'SNR_green_median', 'SNR_red_median']] = np.nan
+            # cat.loc[idx, ['SNR_median_mgii', 'SNR_blue_median_mgii', 'SNR_green_median_mgii', 'SNR_red_median_mgii']] = np.nan
     
     return cat
 
@@ -251,14 +251,14 @@ def main():
         cat = cat.head(args.number)
     
     # Add SNR columns if they don't exist
-    # for col in ['SNR_mean', 'SNR_blue_mean', 'SNR_green_mean', 'SNR_red_mean']:
-    for col in ['SNR_mean_mgii', 'SNR_blue_mean_mgii', 'SNR_green_mean_mgii', 'SNR_red_mean_mgii']:
+    for col in ['SNR_median', 'SNR_blue_median', 'SNR_green_median', 'SNR_red_median']:
+    # for col in ['SNR_median_mgii', 'SNR_blue_median_mgii', 'SNR_green_median_mgii', 'SNR_red_median_mgii']:
         if col not in cat.columns:
             cat[col] = np.nan
     
     # Filter to only process rows that don't have SNR calculated yet
-    # mask = cat['SNR_mean'].isna() | (cat['SNR_mean'] < 0)
-    mask = cat['SNR_mean_mgii'].isna() | (cat['SNR_mean_mgii'] < 0)
+    mask = cat['SNR_median'].isna() | (cat['SNR_median'] < 0)
+    # mask = cat['SNR_median_mgii'].isna() | (cat['SNR_median_mgii'] < 0)
     if mask.any():
         print(f"Processing {mask.sum()} targets that need SNR calculation")
         cat_to_process = cat[mask].copy()

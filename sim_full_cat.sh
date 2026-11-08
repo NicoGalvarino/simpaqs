@@ -1,22 +1,6 @@
-#!/bin/bash
-set -e
 
-# /home/nguerrav/miniconda3/envs/etc_4fs/bin/python3 simulate_quasars_no_abs.py
-# if [ $? -eq 0 ]; then
-    # echo "simulate_quasars_no_abs.py completed successfully"
+python3 simulate_quasars_no_abs.py --dir /Volumes/T7_blu/4MOST_ByCycle/mock_data/QSO_templates/ --input_cat /Volumes/T7_blu/4MOST_ByCycle/mock_data/ByCycle_Final_cat_with_qselfie_682.fits
 
-/home/nguerrav/miniconda3/envs/etc_4fs/bin/python3 simulate_catalog.py --output /data2/home2/nguerrav/QSO_simpaqs/QSOs_L1_output_with_fobs_sim682_nexp
-if [ $? -eq 0 ]; then
-    echo "simulate_catalog.py completed successfully"
-    
-    /home/nguerrav/miniconda3/envs/etc_4fs/bin/python3 rebin_and_get_SNR.py
-    if [ $? -eq 0 ]; then
-        echo "All scripts completed successfully"
-    else
-        echo "rebin_and_get_SNR.py failed with exit code $?"
-        exit 1
-    fi
-else
-    echo "simulate_catalog.py failed with exit code $?"
-    exit 1
-fi
+python3 simulate_catalog.py --output /Volumes/T7_blu/4MOST_ByCycle/mock_data/QSOs_L1_output/ --input_cat /Volumes/T7_blu/4MOST_ByCycle/mock_data/QSO_templates/ByCycle_Final_cat_with_qselfie_682_fobs_qso_templates.fits --temp-dir /Volumes/T7_blu/4MOST_ByCycle/mock_data/QSO_templates/
+
+python3 rebin_and_get_SNR.py --input_cat ByCycle_Final_cat_with_qselfie_682_fobs_qso_templates.fits --cat-path /Volumes/T7_blu/4MOST_ByCycle/mock_data/QSO_templates/ --l1-spec-path /Volumes/T7_blu/4MOST_ByCycle/mock_data/QSOs_L1_output/ --rebinned-spec-path /Volumes/T7_blu/4MOST_ByCycle/mock_data/QSOs_rebinned_03ang/ --etc-grid-path /Volumes/T7_blu/4MOST_ByCycle/mock_data/wavelen_grid_03ang.npy
