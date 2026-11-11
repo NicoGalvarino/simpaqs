@@ -289,7 +289,7 @@ def main():
             
             chunk_cat = cat.iloc[start_idx:end_idx]
             z_arr = chunk_cat.REDSHIFT_ESTIMATE.values
-            # names = chunk_cat['NAME'].to_numpy(dtype=str)
+            names = chunk_cat['NAME'].to_numpy(dtype=str)
             mags_apparent = chunk_cat.MAG.values
             mags_err_apparent = chunk_cat.MAG_ERR.values
             fobs = chunk_cat.fobs.values
@@ -299,7 +299,7 @@ def main():
                 nqso=len(z_arr),
                 expand_factor=expanding_factor,
                 z_list=z_arr,
-                # names_list=names,
+                names_list=names,
                 wavelen_grid=args.wavelen_grid,
                 wave_range=(args.wmin, args.wmax),
                 dust_mode=args.dust,
@@ -328,7 +328,7 @@ def main():
             expand_factor=expanding_factor,
             # z_range=(args.zmin, args.zmax),
             z_list=z_arr,
-            # names_list=names,
+            names_list=names,
             wavelen_grid=args.wavelen_grid,
             wave_range=(args.wmin, args.wmax),
             dust_mode=args.dust,
@@ -341,14 +341,14 @@ def main():
         )
 
     # update each QSOs TEMPLATE column to the newly created template
-    model_params = Table.read(f'{args.dir}/model_parameters.fits')
+    model_params = Table.read(f'{args.dir}QSOs_data_ByCycle_Final_cat_with_qselfie_682.fits')
     model_params = model_params['NAME', 'ID'].to_pandas()
     model_params['ID'] = model_params['ID'].astype(pd.StringDtype())
     model_params['NAME'] = model_params['NAME'].astype(pd.StringDtype())
     qso_name_to_id = dict(zip(model_params['NAME'], model_params['ID'] + '.fits'))
     cat['TEMPLATE'] = cat['NAME'].map(qso_name_to_id)
 
-    save_to_fits(cat, args.output_dir, 'ByCycle_Final_cat_with_qselfie_682_fobs_qso_templates.fits')
+    save_to_fits(cat, args.dir, 'ByCycle_Final_cat_with_qselfie_682_fobs_qso_templates.fits')
 
 if __name__ == '__main__':
     main()

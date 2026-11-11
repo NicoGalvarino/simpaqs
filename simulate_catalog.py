@@ -93,7 +93,7 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
 
     catalog['MOON'] = moon
     catalog['SEEING'] = np.random.normal(0.8, 0.3, len(catalog))
-    catalog['AIRMASS'] = np.random.uniform(1.0, 0.5, len(catalog))
+    catalog['AIRMASS'] = np.random.uniform(1.0, 1.5, len(catalog))
 
     # alt = np.arccos(1. / airmass) * 180 / np.pi * u.deg
     # obs = qmost(alt, seeing*u.arcsec, moon)
@@ -168,7 +168,7 @@ def process_catalog(catalog, *, ruleset_fname, rules_fname,
             ruleset = rulesets[ruleset_name]
             etc = ruleset.etc(alt, seeing*u.arcsec, moon)
             # template_fname = os.path.join(template_path, row['TEMPLATE_with_MgII'])
-            template_fname = os.path.join(template_path, row['TEMPLATE'])#+'.fits')
+            template_fname = os.path.join(template_path, row['TEMPLATE']+'.fits')
             # template_fname = os.path.join(template_path, row['TEMPLATE'])
             
             # try:
